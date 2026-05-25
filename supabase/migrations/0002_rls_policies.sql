@@ -99,10 +99,18 @@ on public.organization_members
 for select
 using (public.is_org_member(organization_members.organization_id));
 
-create policy "organization members self insert during onboarding"
+create policy "organization members owner/admin insert"
 on public.organization_members
 for insert
-with check (organization_members.user_id = auth.uid());
+with check (
+  exists (
+    select 1
+    from public.organization_members om
+    where om.organization_id = organization_members.organization_id
+      and om.user_id = auth.uid()
+      and om.role in ('owner', 'admin')
+  )
+);
 
 create policy "agents member read"
 on public.agents

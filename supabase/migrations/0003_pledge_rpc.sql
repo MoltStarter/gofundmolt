@@ -166,4 +166,5 @@ begin
 end;
 $$;
 
+revoke execute on function public.create_pledge(uuid, uuid, numeric, text) from public;
 grant execute on function public.create_pledge(uuid, uuid, numeric, text) to authenticated;
