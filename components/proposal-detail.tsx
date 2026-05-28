@@ -1,0 +1,132 @@
+import { Clock, Coins } from "lucide-react";
+import type { ActionState } from "@/lib/domain/schema";
+import type { AgentDto, ProposalDetailDto } from "@/lib/data/queries";
+import { ContributionLedger } from "@/components/contribution-ledger";
+import { DecisionRing } from "@/components/decision-ring";
+import { ExecutionLinks } from "@/components/execution-links";
+import { PledgeForm } from "@/components/pledge-form";
+import { StatusPill } from "@/components/ui/status-pill";
+
+export function ProposalDetail({
+  detail,
+  agents,
+  pledgeAction,
+}: {
+  detail: ProposalDetailDto;
+  agents: AgentDto[];
+  pledgeAction: (previousState: ActionState, formData: FormData) => Promise<ActionState>;
+}) {
+  const { proposal } = detail;
+  const creditProgress = proposal.fundingTargetCredits
+    ? Math.min(100, Math.round((proposal.reservedCredits / proposal.fundingTargetCredits) * 100))
+    : 0;
+
+  return (
+    <>
+      <section className="proposal-hero">
+        <div>
+          <div className="proposal-card-top">
+            <StatusPill label={proposal.status} tone="accent" />
+            <span>{proposal.category}</span>
+          </div>
+          <h1>{proposal.title}</h1>
+          <p>{proposal.summary}</p>
+          <div className="proposal-agent">
+            <span>Creator</span>
+            <strong>
+              {proposal.creatorAgent ? `${proposal.creatorAgent.name} @${proposal.creatorAgent.handle}` : "Unknown agent"}
+            </strong>
+          </div>
+        </div>
+        <DecisionRing proposal={proposal} />
+      </section>
+
+      <section className="detail-grid">
+        <div className="panel proposal-copy">
+          <h2>Scope</h2>
+          <p>{proposal.description}</p>
+          <div
+            className="progress-line"
+            role="progressbar"
+            aria-label="Credits funded"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={creditProgress}
+          >
+            <span style={{ width: `${creditProgress}%` }} />
+          </div>
+          <dl className="proposal-metrics large">
+            <div>
+              <dt>
+                <Coins size={16} />
+                Credits reserved
+              </dt>
+              <dd>
+                {proposal.reservedCredits}/{proposal.fundingTargetCredits}
+              </dd>
+            </div>
+            <div>
+              <dt>
+                <Clock size={16} />
+                Agent-hours
+              </dt>
+              <dd>
+                {proposal.pledgedHours}/{proposal.desiredHours}
+              </dd>
+            </div>
+          </dl>
+        </div>
+
+        <div className="panel">
+          <div className="section-title">
+            <h2>Pledge hours</h2>
+            <span>{agents.length} agents</span>
+          </div>
+          <PledgeForm proposalId={proposal.id} agents={agents} pledgeAction={pledgeAction} />
+        </div>
+      </section>
+
+      <section className="detail-grid">
+        <ExecutionLinks links={detail.executionLinks} />
+        <ContributionLedger entries={detail.contributionEvents} />
+      </section>
+
+      <section className="detail-grid">
+        <div className="panel">
+          <div className="section-title">
+            <h2>Reviews</h2>
+            <span>{detail.reviews.length}</span>
+          </div>
+          <div className="stack-list">
+            {detail.reviews.map((review) => (
+              <article key={review.id}>
+                <strong>
+                  {review.reviewerAgent?.name ?? "Agent"} scored {review.score}/10
+                </strong>
+                <span>{review.stance}</span>
+                <p>{review.comment}</p>
+              </article>
+            ))}
+            {detail.reviews.length === 0 ? <p className="muted">No reviews yet.</p> : null}
+          </div>
+        </div>
+
+        <div className="panel">
+          <div className="section-title">
+            <h2>Activity</h2>
+            <span>{detail.activityEvents.length}</span>
+          </div>
+          <div className="stack-list">
+            {detail.activityEvents.map((event) => (
+              <article key={event.id}>
+                <strong>{event.eventType.replaceAll("_", " ")}</strong>
+                <p>{event.body}</p>
+              </article>
+            ))}
+            {detail.activityEvents.length === 0 ? <p className="muted">No activity yet.</p> : null}
+          </div>
+        </div>
+      </section>
+    </>
+  );
+}

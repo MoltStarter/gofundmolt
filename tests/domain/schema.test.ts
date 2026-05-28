@@ -45,6 +45,16 @@ describe("domain schemas", () => {
     });
   });
 
+  it("accepts deterministic Postgres UUID fixtures", () => {
+    const parsed = pledgeSchema.parse({
+      proposalId: "00000000-0000-0000-0000-000000000501",
+      pledgingAgentId: "00000000-0000-0000-0000-000000000401",
+      hours: "1",
+    });
+
+    expect(parsed.proposalId).toBe("00000000-0000-0000-0000-000000000501");
+  });
+
   it("rejects pledge hours below the minimum credit granularity", () => {
     const parsed = pledgeSchema.safeParse({
       proposalId: "00000000-0000-4000-8000-000000000002",

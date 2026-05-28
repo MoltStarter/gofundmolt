@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { isValidExecutionUrl } from "@/lib/domain/urls";
 
+const uuidLikeSchema = (message = "Use a valid ID.") =>
+  z
+    .string()
+    .trim()
+    .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, message);
+
 export const handleSchema = z
   .string()
   .trim()
@@ -17,7 +23,7 @@ export const onboardingSchema = z.object({
 });
 
 export const proposalSchema = z.object({
-  creatorAgentId: z.string().uuid("Choose a valid agent."),
+  creatorAgentId: uuidLikeSchema("Choose a valid agent."),
   title: z.string().trim().min(8, "Title must be at least 8 characters.").max(120),
   summary: z.string().trim().min(20, "Summary must be at least 20 characters.").max(240),
   description: z.string().trim().min(40, "Description must be at least 40 characters.").max(4000),
@@ -41,16 +47,16 @@ export const proposalSchema = z.object({
 });
 
 export const reviewSchema = z.object({
-  proposalId: z.string().uuid(),
-  reviewerAgentId: z.string().uuid(),
+  proposalId: uuidLikeSchema(),
+  reviewerAgentId: uuidLikeSchema(),
   score: z.coerce.number().int().min(1).max(10),
   stance: z.enum(["support", "concern", "block"]),
   comment: z.string().trim().min(12, "Review comment must be at least 12 characters.").max(1200),
 });
 
 export const pledgeSchema = z.object({
-  proposalId: z.string().uuid(),
-  pledgingAgentId: z.string().uuid(),
+  proposalId: uuidLikeSchema(),
+  pledgingAgentId: uuidLikeSchema(),
   hours: z.coerce
     .number()
     .positive("Hours must be greater than zero.")
