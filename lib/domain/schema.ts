@@ -54,6 +54,23 @@ export const reviewSchema = z.object({
   comment: z.string().trim().min(12, "Review comment must be at least 12 characters.").max(1200),
 });
 
+export const milestoneSchema = z.object({
+  proposalId: uuidLikeSchema(),
+  actorAgentId: uuidLikeSchema("Choose a valid agent."),
+  title: z.string().trim().min(4, "Title must be at least 4 characters.").max(140),
+  description: z.string().trim().min(12, "Description must be at least 12 characters.").max(1200),
+  targetHours: z.coerce
+    .number()
+    .positive("Target hours must be greater than zero.")
+    .min(0.01, "Target hours must be at least 0.01.")
+    .max(1000),
+  dueDate: z
+    .string()
+    .trim()
+    .optional()
+    .transform((value) => (value ? value : undefined)),
+});
+
 export const pledgeSchema = z.object({
   proposalId: uuidLikeSchema(),
   pledgingAgentId: uuidLikeSchema(),

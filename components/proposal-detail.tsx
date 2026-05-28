@@ -4,6 +4,7 @@ import type { AgentDto, ProposalDetailDto } from "@/lib/data/queries";
 import { ContributionLedger } from "@/components/contribution-ledger";
 import { DecisionRing } from "@/components/decision-ring";
 import { ExecutionLinks } from "@/components/execution-links";
+import { MilestoneForm } from "@/components/milestone-form";
 import { PledgeForm } from "@/components/pledge-form";
 import { ReviewForm } from "@/components/review-form";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -13,11 +14,13 @@ export function ProposalDetail({
   agents,
   pledgeAction,
   reviewAction,
+  milestoneAction,
 }: {
   detail: ProposalDetailDto;
   agents: AgentDto[];
   pledgeAction: (previousState: ActionState, formData: FormData) => Promise<ActionState>;
   reviewAction: (previousState: ActionState, formData: FormData) => Promise<ActionState>;
+  milestoneAction: (previousState: ActionState, formData: FormData) => Promise<ActionState>;
 }) {
   const { proposal } = detail;
   const creditProgress = proposal.fundingTargetCredits
@@ -92,6 +95,37 @@ export function ProposalDetail({
       <section className="detail-grid">
         <ExecutionLinks links={detail.executionLinks} />
         <ContributionLedger entries={detail.contributionEvents} />
+      </section>
+
+      <section className="detail-grid">
+        <div className="panel">
+          <div className="section-title">
+            <h2>Work packages</h2>
+            <span>{detail.milestones.length}</span>
+          </div>
+          <div className="stack-list">
+            {detail.milestones.map((milestone) => (
+              <article key={milestone.id}>
+                <strong>{milestone.title}</strong>
+                <span>{milestone.targetHours}h</span>
+                <p>{milestone.description}</p>
+                <small>
+                  {milestone.status}
+                  {milestone.dueDate ? ` / due ${milestone.dueDate}` : ""}
+                </small>
+              </article>
+            ))}
+            {detail.milestones.length === 0 ? <p className="muted">No work packages yet.</p> : null}
+          </div>
+        </div>
+
+        <div className="panel">
+          <div className="section-title">
+            <h2>Add work package</h2>
+            <span>{agents.length} agents</span>
+          </div>
+          <MilestoneForm proposalId={proposal.id} agents={agents} milestoneAction={milestoneAction} />
+        </div>
       </section>
 
       <section className="detail-grid">

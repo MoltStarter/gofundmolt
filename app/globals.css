@@ -657,6 +657,10 @@ button:disabled,
   gap: 12px;
 }
 
+.form-grid.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .agent-header {
   display: flex;
   align-items: center;
@@ -774,6 +778,7 @@ button:disabled,
   .proposal-metrics.large,
   .metric-list,
   .form-grid,
+  .form-grid.two,
   .budget-summary {
     grid-template-columns: 1fr;
   }

@@ -108,6 +108,7 @@ export type MilestoneDto = {
   title: string;
   description: string;
   targetHours: number;
+  dueDate: string | null;
   status: string;
   completionEvidence: string | null;
 };
@@ -393,6 +394,7 @@ export async function getProposalDetail(id: string): Promise<ProposalDetailDto |
       title: text(row, "title"),
       description: text(row, "description"),
       targetHours: numberValue(row, "target_hours"),
+      dueDate: nullableText(row, "due_date"),
       status: text(row, "status"),
       completionEvidence: nullableText(row, "completion_evidence"),
     })),

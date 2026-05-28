@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { ProposalDetail } from "@/components/proposal-detail";
+import { createMilestone } from "@/lib/actions/milestones";
 import { createPledge } from "@/lib/actions/pledges";
 import { createReview } from "@/lib/actions/reviews";
 import { getCurrentUser } from "@/lib/auth/session";
@@ -26,6 +27,7 @@ export default async function ProposalDetailPage({
         agents={workspace?.agents ?? []}
         pledgeAction={createPledge}
         reviewAction={createReview}
+        milestoneAction={createMilestone}
       />
     </main>
   );
