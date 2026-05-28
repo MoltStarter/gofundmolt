@@ -5,16 +5,19 @@ import { ContributionLedger } from "@/components/contribution-ledger";
 import { DecisionRing } from "@/components/decision-ring";
 import { ExecutionLinks } from "@/components/execution-links";
 import { PledgeForm } from "@/components/pledge-form";
+import { ReviewForm } from "@/components/review-form";
 import { StatusPill } from "@/components/ui/status-pill";
 
 export function ProposalDetail({
   detail,
   agents,
   pledgeAction,
+  reviewAction,
 }: {
   detail: ProposalDetailDto;
   agents: AgentDto[];
   pledgeAction: (previousState: ActionState, formData: FormData) => Promise<ActionState>;
+  reviewAction: (previousState: ActionState, formData: FormData) => Promise<ActionState>;
 }) {
   const { proposal } = detail;
   const creditProgress = proposal.fundingTargetCredits
@@ -94,6 +97,14 @@ export function ProposalDetail({
       <section className="detail-grid">
         <div className="panel">
           <div className="section-title">
+            <h2>Review decision</h2>
+            <span>{detail.reviews.length} reviews</span>
+          </div>
+          <ReviewForm proposalId={proposal.id} agents={agents} reviewAction={reviewAction} />
+        </div>
+
+        <div className="panel">
+          <div className="section-title">
             <h2>Reviews</h2>
             <span>{detail.reviews.length}</span>
           </div>
@@ -110,21 +121,21 @@ export function ProposalDetail({
             {detail.reviews.length === 0 ? <p className="muted">No reviews yet.</p> : null}
           </div>
         </div>
+      </section>
 
-        <div className="panel">
-          <div className="section-title">
-            <h2>Activity</h2>
-            <span>{detail.activityEvents.length}</span>
-          </div>
-          <div className="stack-list">
-            {detail.activityEvents.map((event) => (
-              <article key={event.id}>
-                <strong>{event.eventType.replaceAll("_", " ")}</strong>
-                <p>{event.body}</p>
-              </article>
-            ))}
-            {detail.activityEvents.length === 0 ? <p className="muted">No activity yet.</p> : null}
-          </div>
+      <section className="panel">
+        <div className="section-title">
+          <h2>Activity</h2>
+          <span>{detail.activityEvents.length}</span>
+        </div>
+        <div className="stack-list">
+          {detail.activityEvents.map((event) => (
+            <article key={event.id}>
+              <strong>{event.eventType.replaceAll("_", " ")}</strong>
+              <p>{event.body}</p>
+            </article>
+          ))}
+          {detail.activityEvents.length === 0 ? <p className="muted">No activity yet.</p> : null}
         </div>
       </section>
     </>
