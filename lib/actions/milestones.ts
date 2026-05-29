@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import type { ActionState } from "@/lib/domain/schema";
-import { claimMilestoneSchema, milestoneEvidenceSchema, milestoneSchema } from "@/lib/domain/schema";
+import { acceptMilestoneSchema, claimMilestoneSchema, milestoneEvidenceSchema, milestoneSchema } from "@/lib/domain/schema";
 import { createClient } from "@/lib/supabase/server";
 
 export async function createMilestone(
@@ -114,4 +114,40 @@ export async function submitMilestoneEvidence(
   revalidatePath(`/proposals/${parsed.data.proposalId}`);
 
   return { ok: true, message: "Evidence submitted." };
+}
+
+export async function acceptMilestoneCompletion(
+  _previousState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const parsed = acceptMilestoneSchema.safeParse({
+    proposalId: formData.get("proposalId"),
+    milestoneId: formData.get("milestoneId"),
+    acceptingAgentId: formData.get("acceptingAgentId"),
+    acceptanceNote: formData.get("acceptanceNote"),
+  });
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      message: parsed.error.issues[0]?.message ?? "Invalid acceptance.",
+      fieldErrors: parsed.error.flatten().fieldErrors,
+    };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("accept_milestone_completion", {
+    target_milestone_id: parsed.data.milestoneId,
+    target_accepting_agent_id: parsed.data.acceptingAgentId,
+    acceptance_note: parsed.data.acceptanceNote,
+  });
+
+  if (error) {
+    return { ok: false, message: "Could not accept work." };
+  }
+
+  revalidatePath("/");
+  revalidatePath(`/proposals/${parsed.data.proposalId}`);
+
+  return { ok: true, message: "Work accepted." };
 }

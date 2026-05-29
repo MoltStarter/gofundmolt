@@ -13,6 +13,8 @@ const claimingAgentId = "00000000-0000-0000-0000-000000000403";
 const expectedMilestoneActivityEventType = "milestone_created";
 const expectedClaimActivityEventType = "milestone_claimed";
 const expectedCompletionActivityEventType = "milestone_completed";
+const expectedAcceptanceActivityEventType = "milestone_accepted";
+const expectedWorkAcceptedEventType = "work_accepted";
 
 describe("create_milestone rpc", () => {
   beforeAll(() => {
@@ -301,6 +303,114 @@ describe("create_milestone rpc", () => {
       claimed_agent_id: claimingAgentId,
       completion_evidence: completionEvidence,
     });
+    expect(activity).toHaveLength(1);
+  });
+
+  it("accepts completed milestone evidence and records accepted work contribution units", async () => {
+    const client = createClient(supabaseUrl, publishableKey!);
+    const title = `Acceptable milestone ${crypto.randomUUID().slice(0, 8)}`;
+    const completionEvidence =
+      "Delivered in https://github.com/water-bear86/gofundmolt/pull/100 with acceptance notes.";
+    const acceptanceNote = "Reviewed evidence, tests, and browser behavior. Work accepted.";
+    const targetHours = 0.02;
+
+    const signIn = await client.auth.signInWithPassword({
+      email: "operator@gofundmolt.local",
+      password: "password123",
+    });
+
+    expect(signIn.error).toBeNull();
+
+    const { data: milestoneId, error: createError } = await client.rpc("create_milestone", {
+      target_proposal_id: targetProposalId,
+      target_actor_agent_id: actorAgentId,
+      milestone_title: title,
+      milestone_description: "Produce a finished package that another agent can accept.",
+      milestone_target_hours: targetHours,
+      milestone_due_date: null,
+    });
+
+    expect(createError).toBeNull();
+    expect(milestoneId).toEqual(expect.any(String));
+
+    const { error: claimError } = await client.rpc("claim_milestone", {
+      target_milestone_id: milestoneId,
+      target_claiming_agent_id: claimingAgentId,
+    });
+
+    expect(claimError).toBeNull();
+
+    const { error: completeError } = await client.rpc("submit_milestone_evidence", {
+      target_milestone_id: milestoneId,
+      target_actor_agent_id: claimingAgentId,
+      completion_evidence: completionEvidence,
+    });
+
+    expect(completeError).toBeNull();
+
+    const directUpdate = await client
+      .from("milestones")
+      .update({ status: "accepted", acceptance_note: acceptanceNote })
+      .eq("id", milestoneId)
+      .select("status,acceptance_note");
+
+    expect(directUpdate.error).toBeNull();
+    expect(directUpdate.data).toEqual([]);
+
+    const { data: acceptedMilestoneId, error: acceptError } = await client.rpc("accept_milestone_completion", {
+      target_milestone_id: milestoneId,
+      target_accepting_agent_id: actorAgentId,
+      acceptance_note: acceptanceNote,
+    });
+
+    expect(acceptError).toBeNull();
+    expect(acceptedMilestoneId).toBe(milestoneId);
+
+    const [
+      { data: milestone, error: milestoneError },
+      { data: contributions, error: contributionError },
+      { data: activity, error: activityError },
+    ] = await Promise.all([
+      client
+        .from("milestones")
+        .select("status,claimed_agent_id,accepted_agent_id,accepted_at,acceptance_note")
+        .eq("id", milestoneId)
+        .single(),
+      client
+        .from("contribution_events")
+        .select("event_type,actor_agent_id,units,source_table,source_id")
+        .eq("proposal_id", targetProposalId)
+        .eq("actor_agent_id", claimingAgentId)
+        .eq("event_type", expectedWorkAcceptedEventType)
+        .eq("source_table", "milestones")
+        .eq("source_id", milestoneId),
+      client
+        .from("activity_events")
+        .select("event_type")
+        .eq("proposal_id", targetProposalId)
+        .eq("actor_agent_id", actorAgentId)
+        .eq("event_type", expectedAcceptanceActivityEventType)
+        .contains("metadata", { milestone_id: milestoneId }),
+    ]);
+
+    expect(milestoneError).toBeNull();
+    expect(contributionError).toBeNull();
+    expect(activityError).toBeNull();
+    expect(milestone).toMatchObject({
+      status: "accepted",
+      claimed_agent_id: claimingAgentId,
+      accepted_agent_id: actorAgentId,
+      acceptance_note: acceptanceNote,
+    });
+    expect(milestone?.accepted_at).toEqual(expect.any(String));
+    expect(contributions).toHaveLength(1);
+    expect(contributions?.[0]).toMatchObject({
+      event_type: expectedWorkAcceptedEventType,
+      actor_agent_id: claimingAgentId,
+      source_table: "milestones",
+      source_id: milestoneId,
+    });
+    expect(Number(contributions?.[0]?.units)).toBe(targetHours);
     expect(activity).toHaveLength(1);
   });
 });

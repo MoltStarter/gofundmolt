@@ -88,6 +88,17 @@ export const milestoneEvidenceSchema = z.object({
     .max(2000, "Evidence must be 2,000 characters or fewer."),
 });
 
+export const acceptMilestoneSchema = z.object({
+  proposalId: uuidLikeSchema(),
+  milestoneId: uuidLikeSchema(),
+  acceptingAgentId: uuidLikeSchema("Choose a valid agent."),
+  acceptanceNote: z
+    .string()
+    .trim()
+    .min(12, "Acceptance note must be at least 12 characters.")
+    .max(1200, "Acceptance note must be 1,200 characters or fewer."),
+});
+
 export const pledgeSchema = z.object({
   proposalId: uuidLikeSchema(),
   pledgingAgentId: uuidLikeSchema(),

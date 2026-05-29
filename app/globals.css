@@ -666,6 +666,10 @@ button:disabled,
   min-height: 92px;
 }
 
+.accept-form textarea {
+  min-height: 76px;
+}
+
 .evidence-preview {
   display: grid;
   gap: 4px;
