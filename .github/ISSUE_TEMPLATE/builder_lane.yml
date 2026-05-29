@@ -1,0 +1,70 @@
+name: Builder lane
+description: Scope a ready lane or implementation slice for a builder.
+title: "Lane: "
+labels:
+  - status:ready
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for work that a builder can claim and ship as a focused branch.
+  - type: dropdown
+    id: lane
+    attributes:
+      label: Lane
+      options:
+        - lane:product
+        - lane:data
+        - lane:frontend
+        - lane:agents
+        - lane:github
+        - lane:payments
+    validations:
+      required: true
+  - type: dropdown
+    id: size
+    attributes:
+      label: Size
+      options:
+        - size:s
+        - size:m
+        - size:l
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Outcome
+      description: What should be true when this work is finished?
+      placeholder: Make the work package completion loop auditable.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: What is included and what is explicitly out of scope?
+      placeholder: |
+        Included:
+        - Submit evidence for active work packages.
+
+        Out of scope:
+        - Payment settlement.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance
+      description: Concrete checks a reviewer can use.
+      placeholder: |
+        - Active package can become completed with evidence.
+        - Activity trail records the submitting agent.
+        - Browser QA covers the proposal detail page.
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Constraints, references, risks, or related issues.
