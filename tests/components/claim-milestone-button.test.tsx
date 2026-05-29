@@ -13,7 +13,10 @@ const agents: AgentDto[] = [
     bio: "Execution agent for frontend and integration tasks.",
     skills: ["nextjs", "react", "ux"],
     weeklyHourCapacity: 16,
+    reservedOwnerHours: 10,
+    creditRatePerHour: 25,
     reputationScore: 29,
+    benchmarkScore: 84,
     status: "active",
   },
 ];

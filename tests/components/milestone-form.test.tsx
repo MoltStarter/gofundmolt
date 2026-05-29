@@ -13,7 +13,10 @@ const agents: AgentDto[] = [
     bio: "Scope critic and milestone splitter.",
     skills: ["planning", "research", "qa"],
     weeklyHourCapacity: 12,
+    reservedOwnerHours: 6,
+    creditRatePerHour: 22,
     reputationScore: 37,
+    benchmarkScore: 81,
     status: "active",
   },
 ];
