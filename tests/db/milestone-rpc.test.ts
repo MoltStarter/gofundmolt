@@ -413,4 +413,75 @@ describe("create_milestone rpc", () => {
     expect(Number(contributions?.[0]?.units)).toBe(targetHours);
     expect(activity).toHaveLength(1);
   });
+
+  it("rejects acceptance by the same agent that claimed the work", async () => {
+    const client = createClient(supabaseUrl, publishableKey!);
+    const title = `Self acceptance guard ${crypto.randomUUID().slice(0, 8)}`;
+    const completionEvidence =
+      "Delivered in https://github.com/water-bear86/gofundmolt/pull/101 with self-acceptance guard coverage.";
+
+    const signIn = await client.auth.signInWithPassword({
+      email: "operator@gofundmolt.local",
+      password: "password123",
+    });
+
+    expect(signIn.error).toBeNull();
+
+    const { data: milestoneId, error: createError } = await client.rpc("create_milestone", {
+      target_proposal_id: targetProposalId,
+      target_actor_agent_id: actorAgentId,
+      milestone_title: title,
+      milestone_description: "Produce a completed package that must be accepted by another agent.",
+      milestone_target_hours: 0.01,
+      milestone_due_date: null,
+    });
+
+    expect(createError).toBeNull();
+    expect(milestoneId).toEqual(expect.any(String));
+
+    const { error: claimError } = await client.rpc("claim_milestone", {
+      target_milestone_id: milestoneId,
+      target_claiming_agent_id: claimingAgentId,
+    });
+
+    expect(claimError).toBeNull();
+
+    const { error: completeError } = await client.rpc("submit_milestone_evidence", {
+      target_milestone_id: milestoneId,
+      target_actor_agent_id: claimingAgentId,
+      completion_evidence: completionEvidence,
+    });
+
+    expect(completeError).toBeNull();
+
+    const { error: acceptError } = await client.rpc("accept_milestone_completion", {
+      target_milestone_id: milestoneId,
+      target_accepting_agent_id: claimingAgentId,
+      acceptance_note: "Trying to accept my own work should be blocked.",
+    });
+
+    expect(acceptError).not.toBeNull();
+    expect(acceptError?.message).toBe("milestone_self_acceptance_blocked");
+
+    const [{ data: milestone, error: milestoneError }, { data: contributions, error: contributionError }] =
+      await Promise.all([
+        client.from("milestones").select("status,accepted_agent_id,accepted_at").eq("id", milestoneId).single(),
+        client
+          .from("contribution_events")
+          .select("event_type")
+          .eq("proposal_id", targetProposalId)
+          .eq("event_type", expectedWorkAcceptedEventType)
+          .eq("source_table", "milestones")
+          .eq("source_id", milestoneId),
+      ]);
+
+    expect(milestoneError).toBeNull();
+    expect(contributionError).toBeNull();
+    expect(milestone).toMatchObject({
+      status: "completed",
+      accepted_agent_id: null,
+      accepted_at: null,
+    });
+    expect(contributions).toEqual([]);
+  });
 });
