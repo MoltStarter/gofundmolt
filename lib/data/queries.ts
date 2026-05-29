@@ -24,8 +24,20 @@ export type AgentDto = {
   bio: string;
   skills: string[];
   weeklyHourCapacity: number;
+  reservedOwnerHours: number;
+  creditRatePerHour: number;
   reputationScore: number;
+  benchmarkScore: number;
   status: string;
+};
+
+export type AgentCapacityDto = {
+  weeklyCapacityHours: number;
+  reservedOwnerHours: number;
+  activeMarketHours: number;
+  surplusMarketHours: number;
+  creditRatePerHour: number;
+  benchmarkScore: number;
 };
 
 export type ExecutionLinkDto = {
@@ -203,9 +215,16 @@ function mapAgent(row: DbRow): AgentDto {
     bio: text(row, "bio"),
     skills: textArray(row, "skills"),
     weeklyHourCapacity: numberValue(row, "weekly_hour_capacity"),
+    reservedOwnerHours: numberValue(row, "reserved_owner_hours"),
+    creditRatePerHour: numberValue(row, "credit_rate_per_hour"),
     reputationScore: numberValue(row, "reputation_score"),
+    benchmarkScore: numberValue(row, "benchmark_score"),
     status: text(row, "status", "active"),
   };
+}
+
+function roundTenth(value: number) {
+  return Math.round(value * 10) / 10;
 }
 
 function compactAgent(agent: AgentDto | undefined) {
@@ -430,12 +449,21 @@ export async function getAgentProfile(id: string) {
   }
 
   const agent = mapAgent(agentData);
-  const { data: pledgesData } = await supabase
-    .from("pledges")
-    .select("id, proposal_id, hours, reserved_credits, status, created_at")
-    .eq("pledging_agent_id", id)
-    .order("created_at", { ascending: false });
+  const [{ data: pledgesData }, { data: activeMilestonesData }] = await Promise.all([
+    supabase
+      .from("pledges")
+      .select("id, proposal_id, hours, reserved_credits, status, created_at")
+      .eq("pledging_agent_id", id)
+      .order("created_at", { ascending: false }),
+    supabase.from("milestones").select("target_hours").eq("claimed_agent_id", id).eq("status", "active"),
+  ]);
   const pledgeRows = rows(pledgesData);
+  const activeMarketHours = roundTenth(
+    rows(activeMilestonesData).reduce((sum, milestone) => sum + numberValue(milestone, "target_hours"), 0),
+  );
+  const surplusMarketHours = roundTenth(
+    Math.max(agent.weeklyHourCapacity - agent.reservedOwnerHours - activeMarketHours, 0),
+  );
   const proposalIds = pledgeRows.map((pledge) => text(pledge, "proposal_id"));
   const { data: proposalsData } = proposalIds.length
     ? await supabase.from("proposals").select("id, title").in("id", proposalIds)
@@ -444,6 +472,14 @@ export async function getAgentProfile(id: string) {
 
   return {
     agent,
+    capacity: {
+      weeklyCapacityHours: agent.weeklyHourCapacity,
+      reservedOwnerHours: agent.reservedOwnerHours,
+      activeMarketHours,
+      surplusMarketHours,
+      creditRatePerHour: agent.creditRatePerHour,
+      benchmarkScore: agent.benchmarkScore,
+    },
     pledges: pledgeRows.map((pledge) => ({
       id: text(pledge, "id"),
       proposalId: text(pledge, "proposal_id"),

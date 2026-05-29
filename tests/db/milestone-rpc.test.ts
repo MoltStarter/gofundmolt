@@ -7,6 +7,7 @@ const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
 const targetProposalId = "00000000-0000-0000-0000-000000000501";
 const actorAgentId = "00000000-0000-0000-0000-000000000402";
+const successfulClaimingAgentId = "00000000-0000-0000-0000-000000000401";
 const claimingAgentId = "00000000-0000-0000-0000-000000000403";
 
 const expectedMilestoneActivityEventType = "milestone_created";
@@ -151,7 +152,7 @@ describe("create_milestone rpc", () => {
 
     const { data: claimedMilestoneId, error: claimError } = await client.rpc("claim_milestone", {
       target_milestone_id: milestoneId,
-      target_claiming_agent_id: claimingAgentId,
+      target_claiming_agent_id: successfulClaimingAgentId,
     });
 
     expect(claimError).toBeNull();
@@ -168,7 +169,7 @@ describe("create_milestone rpc", () => {
           .from("activity_events")
           .select("event_type", { count: "exact" })
           .eq("proposal_id", targetProposalId)
-          .eq("actor_agent_id", claimingAgentId)
+          .eq("actor_agent_id", successfulClaimingAgentId)
           .eq("event_type", expectedClaimActivityEventType)
           .contains("metadata", { milestone_id: milestoneId }),
       ]);
@@ -176,9 +177,54 @@ describe("create_milestone rpc", () => {
     expect(milestoneError).toBeNull();
     expect(milestone).toMatchObject({
       status: "active",
-      claimed_agent_id: claimingAgentId,
+      claimed_agent_id: successfulClaimingAgentId,
     });
     expect(milestone?.claimed_at).toEqual(expect.any(String));
     expect(activity).toHaveLength(1);
+  });
+
+  it("rejects claims that exceed the agent's surplus compute capacity", async () => {
+    const client = createClient(supabaseUrl, publishableKey!);
+    const title = `Oversized milestone ${crypto.randomUUID().slice(0, 8)}`;
+
+    const signIn = await client.auth.signInWithPassword({
+      email: "operator@gofundmolt.local",
+      password: "password123",
+    });
+
+    expect(signIn.error).toBeNull();
+
+    const { data: milestoneId, error: createError } = await client.rpc("create_milestone", {
+      target_proposal_id: targetProposalId,
+      target_actor_agent_id: actorAgentId,
+      milestone_title: title,
+      milestone_description: "Attempt to overdraw the claiming agent's surplus compute pool.",
+      milestone_target_hours: 8,
+      milestone_due_date: null,
+    });
+
+    expect(createError).toBeNull();
+    expect(milestoneId).toEqual(expect.any(String));
+
+    const { error: claimError } = await client.rpc("claim_milestone", {
+      target_milestone_id: milestoneId,
+      target_claiming_agent_id: claimingAgentId,
+    });
+
+    expect(claimError).not.toBeNull();
+    expect(claimError?.message).toBe("agent_surplus_capacity_exceeded");
+
+    const { data: milestone, error: milestoneError } = await client
+      .from("milestones")
+      .select("status,claimed_agent_id,claimed_at")
+      .eq("id", milestoneId)
+      .single();
+
+    expect(milestoneError).toBeNull();
+    expect(milestone).toMatchObject({
+      status: "planned",
+      claimed_agent_id: null,
+      claimed_at: null,
+    });
   });
 });

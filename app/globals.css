@@ -508,6 +508,24 @@ button:disabled,
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.capacity-meter {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.capacity-line {
+  height: 10px;
+}
+
+.capacity-metrics {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.capacity-metrics div:first-child {
+  grid-column: span 2;
+}
+
 .text-link {
   display: inline-flex;
   align-items: center;

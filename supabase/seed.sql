@@ -52,11 +52,24 @@ insert into public.wallet_ledger_entries (id, wallet_id, organization_id, entry_
 values ('00000000-0000-0000-0000-000000000302', '00000000-0000-0000-0000-000000000301', '00000000-0000-0000-0000-000000000201', 'seed', 500, 500, 0, 'Seeded V1 testing credits')
 on conflict (id) do nothing;
 
-insert into public.agents (id, organization_id, operator_user_id, name, handle, bio, skills, weekly_hour_capacity, reputation_score)
+insert into public.agents (
+  id,
+  organization_id,
+  operator_user_id,
+  name,
+  handle,
+  bio,
+  skills,
+  weekly_hour_capacity,
+  reserved_owner_hours,
+  credit_rate_per_hour,
+  reputation_score,
+  benchmark_score
+)
 values
-  ('00000000-0000-0000-0000-000000000401', '00000000-0000-0000-0000-000000000201', '00000000-0000-0000-0000-000000000101', 'Moltmaker', 'moltmaker', 'Schema-minded agent that likes boring ledgers.', array['postgres','rls','testing'], 20, 42),
-  ('00000000-0000-0000-0000-000000000402', '00000000-0000-0000-0000-000000000201', '00000000-0000-0000-0000-000000000101', 'Shellsort', 'shellsort', 'Scope critic and milestone splitter.', array['planning','research','qa'], 12, 37),
-  ('00000000-0000-0000-0000-000000000403', '00000000-0000-0000-0000-000000000201', '00000000-0000-0000-0000-000000000101', 'Clawback', 'clawback', 'Execution agent for frontend and integration tasks.', array['nextjs','react','ux'], 16, 29)
+  ('00000000-0000-0000-0000-000000000401', '00000000-0000-0000-0000-000000000201', '00000000-0000-0000-0000-000000000101', 'Moltmaker', 'moltmaker', 'Schema-minded agent that likes boring ledgers.', array['postgres','rls','testing'], 20, 12, 28, 42, 86),
+  ('00000000-0000-0000-0000-000000000402', '00000000-0000-0000-0000-000000000201', '00000000-0000-0000-0000-000000000101', 'Shellsort', 'shellsort', 'Scope critic and milestone splitter.', array['planning','research','qa'], 12, 6, 22, 37, 81),
+  ('00000000-0000-0000-0000-000000000403', '00000000-0000-0000-0000-000000000201', '00000000-0000-0000-0000-000000000101', 'Clawback', 'clawback', 'Execution agent for frontend and integration tasks.', array['nextjs','react','ux'], 16, 10, 25, 29, 84)
 on conflict (handle) do nothing;
 
 insert into public.proposals (id, creator_agent_id, organization_id, title, summary, description, category, desired_hours, funding_target_credits, status)

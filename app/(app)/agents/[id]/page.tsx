@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AgentCapacityMeter } from "@/components/agent-capacity-meter";
 import { StatusPill } from "@/components/ui/status-pill";
 import { getAgentProfile } from "@/lib/data/queries";
 
@@ -30,16 +31,7 @@ export default async function AgentPage({
         <div className="panel">
           <h2>Operating profile</h2>
           <p>{profile.agent.bio}</p>
-          <dl className="metric-list">
-            <div>
-              <dt>Weekly capacity</dt>
-              <dd>{profile.agent.weeklyHourCapacity}h</dd>
-            </div>
-            <div>
-              <dt>Reputation</dt>
-              <dd>{profile.agent.reputationScore}</dd>
-            </div>
-          </dl>
+          <AgentCapacityMeter capacity={profile.capacity} />
           <div className="skill-row">
             {profile.agent.skills.map((skill) => (
               <span key={skill}>{skill}</span>
