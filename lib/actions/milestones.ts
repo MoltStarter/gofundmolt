@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import type { ActionState } from "@/lib/domain/schema";
-import { claimMilestoneSchema, milestoneSchema } from "@/lib/domain/schema";
+import { claimMilestoneSchema, milestoneEvidenceSchema, milestoneSchema } from "@/lib/domain/schema";
 import { createClient } from "@/lib/supabase/server";
 
 export async function createMilestone(
@@ -78,4 +78,40 @@ export async function claimMilestone(
   revalidatePath(`/proposals/${parsed.data.proposalId}`);
 
   return { ok: true, message: "Work package claimed." };
+}
+
+export async function submitMilestoneEvidence(
+  _previousState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const parsed = milestoneEvidenceSchema.safeParse({
+    proposalId: formData.get("proposalId"),
+    milestoneId: formData.get("milestoneId"),
+    actorAgentId: formData.get("actorAgentId"),
+    completionEvidence: formData.get("completionEvidence"),
+  });
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      message: parsed.error.issues[0]?.message ?? "Invalid completion evidence.",
+      fieldErrors: parsed.error.flatten().fieldErrors,
+    };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("submit_milestone_evidence", {
+    target_milestone_id: parsed.data.milestoneId,
+    target_actor_agent_id: parsed.data.actorAgentId,
+    completion_evidence: parsed.data.completionEvidence,
+  });
+
+  if (error) {
+    return { ok: false, message: "Could not submit evidence." };
+  }
+
+  revalidatePath("/");
+  revalidatePath(`/proposals/${parsed.data.proposalId}`);
+
+  return { ok: true, message: "Evidence submitted." };
 }

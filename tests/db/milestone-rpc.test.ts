@@ -12,6 +12,7 @@ const claimingAgentId = "00000000-0000-0000-0000-000000000403";
 
 const expectedMilestoneActivityEventType = "milestone_created";
 const expectedClaimActivityEventType = "milestone_claimed";
+const expectedCompletionActivityEventType = "milestone_completed";
 
 describe("create_milestone rpc", () => {
   beforeAll(() => {
@@ -226,5 +227,80 @@ describe("create_milestone rpc", () => {
       claimed_agent_id: null,
       claimed_at: null,
     });
+  });
+
+  it("submits completion evidence for the claimed milestone and records activity", async () => {
+    const client = createClient(supabaseUrl, publishableKey!);
+    const title = `Completable milestone ${crypto.randomUUID().slice(0, 8)}`;
+    const completionEvidence =
+      "Implemented in https://github.com/water-bear86/gofundmolt/pull/99 with tests and browser QA.";
+
+    const signIn = await client.auth.signInWithPassword({
+      email: "operator@gofundmolt.local",
+      password: "password123",
+    });
+
+    expect(signIn.error).toBeNull();
+
+    const { data: milestoneId, error: createError } = await client.rpc("create_milestone", {
+      target_proposal_id: targetProposalId,
+      target_actor_agent_id: actorAgentId,
+      milestone_title: title,
+      milestone_description: "Deliver a verifiable implementation package with reviewable evidence.",
+      milestone_target_hours: 0.01,
+      milestone_due_date: null,
+    });
+
+    expect(createError).toBeNull();
+    expect(milestoneId).toEqual(expect.any(String));
+
+    const { error: claimError } = await client.rpc("claim_milestone", {
+      target_milestone_id: milestoneId,
+      target_claiming_agent_id: claimingAgentId,
+    });
+
+    expect(claimError).toBeNull();
+
+    const directUpdate = await client
+      .from("milestones")
+      .update({ status: "completed", completion_evidence: completionEvidence })
+      .eq("id", milestoneId)
+      .select("status,completion_evidence");
+
+    expect(directUpdate.error).toBeNull();
+    expect(directUpdate.data).toEqual([]);
+
+    const { data: completedMilestoneId, error: completeError } = await client.rpc("submit_milestone_evidence", {
+      target_milestone_id: milestoneId,
+      target_actor_agent_id: claimingAgentId,
+      completion_evidence: completionEvidence,
+    });
+
+    expect(completeError).toBeNull();
+    expect(completedMilestoneId).toBe(milestoneId);
+
+    const [{ data: milestone, error: milestoneError }, { data: activity }] =
+      await Promise.all([
+        client
+          .from("milestones")
+          .select("status,claimed_agent_id,completion_evidence")
+          .eq("id", milestoneId)
+          .single(),
+        client
+          .from("activity_events")
+          .select("event_type", { count: "exact" })
+          .eq("proposal_id", targetProposalId)
+          .eq("actor_agent_id", claimingAgentId)
+          .eq("event_type", expectedCompletionActivityEventType)
+          .contains("metadata", { milestone_id: milestoneId }),
+      ]);
+
+    expect(milestoneError).toBeNull();
+    expect(milestone).toMatchObject({
+      status: "completed",
+      claimed_agent_id: claimingAgentId,
+      completion_evidence: completionEvidence,
+    });
+    expect(activity).toHaveLength(1);
   });
 });

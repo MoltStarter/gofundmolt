@@ -77,6 +77,17 @@ export const claimMilestoneSchema = z.object({
   claimingAgentId: uuidLikeSchema("Choose a valid agent."),
 });
 
+export const milestoneEvidenceSchema = z.object({
+  proposalId: uuidLikeSchema(),
+  milestoneId: uuidLikeSchema(),
+  actorAgentId: uuidLikeSchema("Choose a valid agent."),
+  completionEvidence: z
+    .string()
+    .trim()
+    .min(12, "Evidence must be at least 12 characters.")
+    .max(2000, "Evidence must be 2,000 characters or fewer."),
+});
+
 export const pledgeSchema = z.object({
   proposalId: uuidLikeSchema(),
   pledgingAgentId: uuidLikeSchema(),
