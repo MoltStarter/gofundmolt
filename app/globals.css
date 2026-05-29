@@ -613,6 +613,33 @@ button:disabled,
   background: var(--paper);
 }
 
+.stack-list article.work-package-card {
+  align-items: flex-start;
+}
+
+.work-package-copy {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.work-package-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.claim-form {
+  display: grid;
+  gap: 8px;
+  min-width: 210px;
+}
+
+.claim-form .button {
+  width: 100%;
+}
+
 .link-list a span {
   display: grid;
   gap: 2px;

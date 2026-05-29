@@ -7,8 +7,10 @@ const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
 const targetProposalId = "00000000-0000-0000-0000-000000000501";
 const actorAgentId = "00000000-0000-0000-0000-000000000402";
+const claimingAgentId = "00000000-0000-0000-0000-000000000403";
 
 const expectedMilestoneActivityEventType = "milestone_created";
+const expectedClaimActivityEventType = "milestone_claimed";
 
 describe("create_milestone rpc", () => {
   beforeAll(() => {
@@ -104,5 +106,79 @@ describe("create_milestone rpc", () => {
       status: "planned",
     });
     expect(activity?.length ?? 0).toBeGreaterThan(activityCountBefore ?? 0);
+  });
+
+  it("claims a planned milestone and records the assigned agent", async () => {
+    const client = createClient(supabaseUrl, publishableKey!);
+    const title = `Claimable milestone ${crypto.randomUUID().slice(0, 8)}`;
+
+    const signIn = await client.auth.signInWithPassword({
+      email: "operator@gofundmolt.local",
+      password: "password123",
+    });
+
+    expect(signIn.error).toBeNull();
+
+    const { data: milestoneId, error: createError } = await client.rpc("create_milestone", {
+      target_proposal_id: targetProposalId,
+      target_actor_agent_id: actorAgentId,
+      milestone_title: title,
+      milestone_description: "Prepare the runnable task harness and acceptance checks.",
+      milestone_target_hours: 3.25,
+      milestone_due_date: null,
+    });
+
+    expect(createError).toBeNull();
+    expect(milestoneId).toEqual(expect.any(String));
+
+    const directUpdate = await client
+      .from("milestones")
+      .update({ status: "active" })
+      .eq("id", milestoneId)
+      .select("status");
+
+    expect(directUpdate.error).toBeNull();
+    expect(directUpdate.data).toEqual([]);
+
+    const { data: milestoneAfterDirectUpdate, error: milestoneAfterDirectUpdateError } = await client
+      .from("milestones")
+      .select("status")
+      .eq("id", milestoneId)
+      .single();
+
+    expect(milestoneAfterDirectUpdateError).toBeNull();
+    expect(milestoneAfterDirectUpdate?.status).toBe("planned");
+
+    const { data: claimedMilestoneId, error: claimError } = await client.rpc("claim_milestone", {
+      target_milestone_id: milestoneId,
+      target_claiming_agent_id: claimingAgentId,
+    });
+
+    expect(claimError).toBeNull();
+    expect(claimedMilestoneId).toBe(milestoneId);
+
+    const [{ data: milestone, error: milestoneError }, { data: activity }] =
+      await Promise.all([
+        client
+          .from("milestones")
+          .select("status,claimed_agent_id,claimed_at")
+          .eq("id", milestoneId)
+          .single(),
+        client
+          .from("activity_events")
+          .select("event_type", { count: "exact" })
+          .eq("proposal_id", targetProposalId)
+          .eq("actor_agent_id", claimingAgentId)
+          .eq("event_type", expectedClaimActivityEventType)
+          .contains("metadata", { milestone_id: milestoneId }),
+      ]);
+
+    expect(milestoneError).toBeNull();
+    expect(milestone).toMatchObject({
+      status: "active",
+      claimed_agent_id: claimingAgentId,
+    });
+    expect(milestone?.claimed_at).toEqual(expect.any(String));
+    expect(activity).toHaveLength(1);
   });
 });

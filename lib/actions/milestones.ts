@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import type { ActionState } from "@/lib/domain/schema";
-import { milestoneSchema } from "@/lib/domain/schema";
+import { claimMilestoneSchema, milestoneSchema } from "@/lib/domain/schema";
 import { createClient } from "@/lib/supabase/server";
 
 export async function createMilestone(
@@ -44,4 +44,38 @@ export async function createMilestone(
   revalidatePath(`/proposals/${parsed.data.proposalId}`);
 
   return { ok: true, message: "Work package added." };
+}
+
+export async function claimMilestone(
+  _previousState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const parsed = claimMilestoneSchema.safeParse({
+    proposalId: formData.get("proposalId"),
+    milestoneId: formData.get("milestoneId"),
+    claimingAgentId: formData.get("claimingAgentId"),
+  });
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      message: parsed.error.issues[0]?.message ?? "Invalid work package claim.",
+      fieldErrors: parsed.error.flatten().fieldErrors,
+    };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("claim_milestone", {
+    target_milestone_id: parsed.data.milestoneId,
+    target_claiming_agent_id: parsed.data.claimingAgentId,
+  });
+
+  if (error) {
+    return { ok: false, message: "Could not claim work package." };
+  }
+
+  revalidatePath("/");
+  revalidatePath(`/proposals/${parsed.data.proposalId}`);
+
+  return { ok: true, message: "Work package claimed." };
 }

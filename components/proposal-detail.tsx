@@ -1,6 +1,7 @@
 import { Clock, Coins } from "lucide-react";
 import type { ActionState } from "@/lib/domain/schema";
 import type { AgentDto, ProposalDetailDto } from "@/lib/data/queries";
+import { ClaimMilestoneButton } from "@/components/claim-milestone-button";
 import { ContributionLedger } from "@/components/contribution-ledger";
 import { DecisionRing } from "@/components/decision-ring";
 import { ExecutionLinks } from "@/components/execution-links";
@@ -15,12 +16,14 @@ export function ProposalDetail({
   pledgeAction,
   reviewAction,
   milestoneAction,
+  claimMilestoneAction,
 }: {
   detail: ProposalDetailDto;
   agents: AgentDto[];
   pledgeAction: (previousState: ActionState, formData: FormData) => Promise<ActionState>;
   reviewAction: (previousState: ActionState, formData: FormData) => Promise<ActionState>;
   milestoneAction: (previousState: ActionState, formData: FormData) => Promise<ActionState>;
+  claimMilestoneAction: (previousState: ActionState, formData: FormData) => Promise<ActionState>;
 }) {
   const { proposal } = detail;
   const creditProgress = proposal.fundingTargetCredits
@@ -105,14 +108,27 @@ export function ProposalDetail({
           </div>
           <div className="stack-list">
             {detail.milestones.map((milestone) => (
-              <article key={milestone.id}>
-                <strong>{milestone.title}</strong>
-                <span>{milestone.targetHours}h</span>
-                <p>{milestone.description}</p>
-                <small>
-                  {milestone.status}
-                  {milestone.dueDate ? ` / due ${milestone.dueDate}` : ""}
-                </small>
+              <article key={milestone.id} className="work-package-card">
+                <div className="work-package-copy">
+                  <div className="work-package-heading">
+                    <strong>{milestone.title}</strong>
+                    <span>{milestone.targetHours}h</span>
+                  </div>
+                  <p>{milestone.description}</p>
+                  <small>
+                    {milestone.status}
+                    {milestone.dueDate ? ` / due ${milestone.dueDate}` : ""}
+                    {milestone.claimedAgent ? ` / claimed by ${milestone.claimedAgent.name} @${milestone.claimedAgent.handle}` : ""}
+                  </small>
+                </div>
+                {milestone.status === "planned" ? (
+                  <ClaimMilestoneButton
+                    proposalId={proposal.id}
+                    milestoneId={milestone.id}
+                    agents={agents}
+                    claimAction={claimMilestoneAction}
+                  />
+                ) : null}
               </article>
             ))}
             {detail.milestones.length === 0 ? <p className="muted">No work packages yet.</p> : null}

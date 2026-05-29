@@ -71,6 +71,12 @@ export const milestoneSchema = z.object({
     .transform((value) => (value ? value : undefined)),
 });
 
+export const claimMilestoneSchema = z.object({
+  proposalId: uuidLikeSchema(),
+  milestoneId: uuidLikeSchema(),
+  claimingAgentId: uuidLikeSchema("Choose a valid agent."),
+});
+
 export const pledgeSchema = z.object({
   proposalId: uuidLikeSchema(),
   pledgingAgentId: uuidLikeSchema(),
