@@ -1,10 +1,12 @@
 import { Clock, Coins } from "lucide-react";
 import type { ActionState } from "@/lib/domain/schema";
 import type { AgentDto, ProposalDetailDto } from "@/lib/data/queries";
+import { AcceptMilestoneButton } from "@/components/accept-milestone-button";
 import { ClaimMilestoneButton } from "@/components/claim-milestone-button";
 import { ContributionLedger } from "@/components/contribution-ledger";
 import { DecisionRing } from "@/components/decision-ring";
 import { ExecutionLinks } from "@/components/execution-links";
+import { MilestoneEvidenceForm } from "@/components/milestone-evidence-form";
 import { MilestoneForm } from "@/components/milestone-form";
 import { PledgeForm } from "@/components/pledge-form";
 import { ReviewForm } from "@/components/review-form";
@@ -17,6 +19,8 @@ export function ProposalDetail({
   reviewAction,
   milestoneAction,
   claimMilestoneAction,
+  evidenceAction,
+  acceptAction,
 }: {
   detail: ProposalDetailDto;
   agents: AgentDto[];
@@ -24,8 +28,11 @@ export function ProposalDetail({
   reviewAction: (previousState: ActionState, formData: FormData) => Promise<ActionState>;
   milestoneAction: (previousState: ActionState, formData: FormData) => Promise<ActionState>;
   claimMilestoneAction: (previousState: ActionState, formData: FormData) => Promise<ActionState>;
+  evidenceAction: (previousState: ActionState, formData: FormData) => Promise<ActionState>;
+  acceptAction: (previousState: ActionState, formData: FormData) => Promise<ActionState>;
 }) {
   const { proposal } = detail;
+  const operableAgentIds = new Set(agents.map((agent) => agent.id));
   const creditProgress = proposal.fundingTargetCredits
     ? Math.min(100, Math.round((proposal.reservedCredits / proposal.fundingTargetCredits) * 100))
     : 0;
@@ -120,6 +127,23 @@ export function ProposalDetail({
                     {milestone.dueDate ? ` / due ${milestone.dueDate}` : ""}
                     {milestone.claimedAgent ? ` / claimed by ${milestone.claimedAgent.name} @${milestone.claimedAgent.handle}` : ""}
                   </small>
+                  {milestone.completionEvidence ? (
+                    <div className="evidence-preview">
+                      <small>Evidence</small>
+                      <p>{milestone.completionEvidence}</p>
+                    </div>
+                  ) : null}
+                  {milestone.acceptanceNote ? (
+                    <div className="evidence-preview">
+                      <small>
+                        Accepted
+                        {milestone.acceptedAgent
+                          ? ` by ${milestone.acceptedAgent.name} @${milestone.acceptedAgent.handle}`
+                          : ""}
+                      </small>
+                      <p>{milestone.acceptanceNote}</p>
+                    </div>
+                  ) : null}
                 </div>
                 {milestone.status === "planned" ? (
                   <ClaimMilestoneButton
@@ -127,6 +151,24 @@ export function ProposalDetail({
                     milestoneId={milestone.id}
                     agents={agents}
                     claimAction={claimMilestoneAction}
+                  />
+                ) : null}
+                {milestone.status === "active" &&
+                milestone.claimedAgent &&
+                operableAgentIds.has(milestone.claimedAgent.id) ? (
+                  <MilestoneEvidenceForm
+                    proposalId={proposal.id}
+                    milestoneId={milestone.id}
+                    completingAgent={milestone.claimedAgent}
+                    evidenceAction={evidenceAction}
+                  />
+                ) : null}
+                {milestone.status === "completed" && milestone.completionEvidence ? (
+                  <AcceptMilestoneButton
+                    proposalId={proposal.id}
+                    milestoneId={milestone.id}
+                    agents={agents.filter((agent) => agent.id !== milestone.claimedAgent?.id)}
+                    acceptAction={acceptAction}
                   />
                 ) : null}
               </article>

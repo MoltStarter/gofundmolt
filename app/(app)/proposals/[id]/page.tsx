@@ -1,6 +1,11 @@
 import { notFound } from "next/navigation";
 import { ProposalDetail } from "@/components/proposal-detail";
-import { claimMilestone, createMilestone } from "@/lib/actions/milestones";
+import {
+  acceptMilestoneCompletion,
+  claimMilestone,
+  createMilestone,
+  submitMilestoneEvidence,
+} from "@/lib/actions/milestones";
 import { createPledge } from "@/lib/actions/pledges";
 import { createReview } from "@/lib/actions/reviews";
 import { getCurrentUser } from "@/lib/auth/session";
@@ -29,6 +34,8 @@ export default async function ProposalDetailPage({
         reviewAction={createReview}
         milestoneAction={createMilestone}
         claimMilestoneAction={claimMilestone}
+        evidenceAction={submitMilestoneEvidence}
+        acceptAction={acceptMilestoneCompletion}
       />
     </main>
   );
