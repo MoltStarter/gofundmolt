@@ -10,6 +10,7 @@ import { MilestoneEvidenceForm } from "@/components/milestone-evidence-form";
 import { MilestoneForm } from "@/components/milestone-form";
 import { PledgeForm } from "@/components/pledge-form";
 import { ReviewForm } from "@/components/review-form";
+import { SettleMilestoneButton } from "@/components/settle-milestone-button";
 import { StatusPill } from "@/components/ui/status-pill";
 
 export function ProposalDetail({
@@ -21,6 +22,7 @@ export function ProposalDetail({
   claimMilestoneAction,
   evidenceAction,
   acceptAction,
+  settleAction,
 }: {
   detail: ProposalDetailDto;
   agents: AgentDto[];
@@ -30,6 +32,7 @@ export function ProposalDetail({
   claimMilestoneAction: (previousState: ActionState, formData: FormData) => Promise<ActionState>;
   evidenceAction: (previousState: ActionState, formData: FormData) => Promise<ActionState>;
   acceptAction: (previousState: ActionState, formData: FormData) => Promise<ActionState>;
+  settleAction: (previousState: ActionState, formData: FormData) => Promise<ActionState>;
 }) {
   const { proposal } = detail;
   const operableAgentIds = new Set(agents.map((agent) => agent.id));
@@ -144,6 +147,18 @@ export function ProposalDetail({
                       <p>{milestone.acceptanceNote}</p>
                     </div>
                   ) : null}
+                  {milestone.settledAt ? (
+                    <div className="evidence-preview">
+                      <small>
+                        Settled
+                        {milestone.settledAgent
+                          ? ` by ${milestone.settledAgent.name} @${milestone.settledAgent.handle}`
+                          : ""}
+                        {milestone.settledCredits ? ` / ${milestone.settledCredits} credits` : ""}
+                      </small>
+                      {milestone.settlementNote ? <p>{milestone.settlementNote}</p> : null}
+                    </div>
+                  ) : null}
                 </div>
                 {milestone.status === "planned" ? (
                   <ClaimMilestoneButton
@@ -169,6 +184,14 @@ export function ProposalDetail({
                     milestoneId={milestone.id}
                     agents={agents.filter((agent) => agent.id !== milestone.claimedAgent?.id)}
                     acceptAction={acceptAction}
+                  />
+                ) : null}
+                {milestone.status === "accepted" ? (
+                  <SettleMilestoneButton
+                    proposalId={proposal.id}
+                    milestoneId={milestone.id}
+                    agents={agents}
+                    settleAction={settleAction}
                   />
                 ) : null}
               </article>

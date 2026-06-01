@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { beforeAll, describe, expect, it } from "vitest";
 
 const supabaseUrl =
@@ -14,7 +14,100 @@ const expectedMilestoneActivityEventType = "milestone_created";
 const expectedClaimActivityEventType = "milestone_claimed";
 const expectedCompletionActivityEventType = "milestone_completed";
 const expectedAcceptanceActivityEventType = "milestone_accepted";
+const expectedSettlementActivityEventType = "milestone_settled";
 const expectedWorkAcceptedEventType = "work_accepted";
+const expectedSettleLedgerEntryType = "settle";
+
+type TestDatabase = {
+  public: {
+    Tables: Record<
+      string,
+      {
+        Row: Record<string, unknown>;
+        Insert: Record<string, unknown>;
+        Update: Record<string, unknown>;
+        Relationships: [];
+      }
+    >;
+    Views: Record<string, never>;
+    Functions: Record<string, { Args: Record<string, unknown>; Returns: unknown }>;
+    Enums: Record<string, string>;
+    CompositeTypes: Record<string, never>;
+  };
+};
+type TestSupabaseClient = SupabaseClient<TestDatabase>;
+
+async function createAcceptedMilestone({
+  client,
+  title,
+  targetHours,
+  claimingAgentId: targetClaimingAgentId = claimingAgentId,
+  acceptingAgentId = actorAgentId,
+}: {
+  client: TestSupabaseClient;
+  title: string;
+  targetHours: number;
+  claimingAgentId?: string;
+  acceptingAgentId?: string;
+}) {
+  const completionEvidence =
+    "Delivered in https://github.com/water-bear86/gofundmolt/pull/102 with settlement-ready evidence.";
+  const acceptanceNote = "Reviewed evidence and accepted this work package for settlement.";
+
+  const { data: milestoneId, error: createError } = await client.rpc("create_milestone", {
+    target_proposal_id: targetProposalId,
+    target_actor_agent_id: actorAgentId,
+    milestone_title: title,
+    milestone_description: "Produce accepted work that can be settled from reserved credits.",
+    milestone_target_hours: targetHours,
+    milestone_due_date: null,
+  });
+
+  expect(createError).toBeNull();
+  expect(milestoneId).toEqual(expect.any(String));
+
+  const { error: claimError } = await client.rpc("claim_milestone", {
+    target_milestone_id: milestoneId,
+    target_claiming_agent_id: targetClaimingAgentId,
+  });
+
+  expect(claimError).toBeNull();
+
+  const { error: completeError } = await client.rpc("submit_milestone_evidence", {
+    target_milestone_id: milestoneId,
+    target_actor_agent_id: targetClaimingAgentId,
+    completion_evidence: completionEvidence,
+  });
+
+  expect(completeError).toBeNull();
+
+  const { error: acceptError } = await client.rpc("accept_milestone_completion", {
+    target_milestone_id: milestoneId,
+    target_accepting_agent_id: acceptingAgentId,
+    acceptance_note: acceptanceNote,
+  });
+
+  expect(acceptError).toBeNull();
+
+  return milestoneId as string;
+}
+
+async function getSeedWallet(client: TestSupabaseClient) {
+  const { data, error } = await client
+    .from("wallets")
+    .select("id,balance_credits,reserved_credits")
+    .eq("organization_id", "00000000-0000-0000-0000-000000000201")
+    .single();
+
+  expect(error).toBeNull();
+  expect(data).not.toBeNull();
+
+  return {
+    id: String(data!.id),
+    balanceCredits: Number(data!.balance_credits),
+    reservedCredits: Number(data!.reserved_credits),
+  };
+}
 
 describe("create_milestone rpc", () => {
   beforeAll(() => {
@@ -483,5 +576,269 @@ describe("create_milestone rpc", () => {
       accepted_at: null,
     });
     expect(contributions).toEqual([]);
+  });
+
+  it("rejects settlement before a milestone is accepted", async () => {
+    const client = createClient(supabaseUrl, publishableKey!);
+    const title = `Premature settlement guard ${crypto.randomUUID().slice(0, 8)}`;
+
+    const signIn = await client.auth.signInWithPassword({
+      email: "operator@gofundmolt.local",
+      password: "password123",
+    });
+
+    expect(signIn.error).toBeNull();
+
+    const { data: milestoneId, error: createError } = await client.rpc("create_milestone", {
+      target_proposal_id: targetProposalId,
+      target_actor_agent_id: actorAgentId,
+      milestone_title: title,
+      milestone_description: "Create work that should not settle before acceptance.",
+      milestone_target_hours: 0.03,
+      milestone_due_date: null,
+    });
+
+    expect(createError).toBeNull();
+    expect(milestoneId).toEqual(expect.any(String));
+
+    const { error: settleError } = await client.rpc("settle_accepted_milestone", {
+      target_milestone_id: milestoneId,
+      target_settling_agent_id: actorAgentId,
+      settlement_note: "Premature settlement should be blocked.",
+    });
+
+    expect(settleError).not.toBeNull();
+    expect(settleError?.message).toBe("milestone_not_settlement_ready");
+
+    const { data: milestone, error: milestoneError } = await client
+      .from("milestones")
+      .select("status,settled_agent_id,settled_at,settled_credits")
+      .eq("id", milestoneId)
+      .single();
+
+    expect(milestoneError).toBeNull();
+    expect(milestone).toMatchObject({
+      status: "planned",
+      settled_agent_id: null,
+      settled_at: null,
+      settled_credits: null,
+    });
+  });
+
+  it("settles accepted milestone work from reserved credits and records the ledger trail", async () => {
+    const client = createClient(supabaseUrl, publishableKey!);
+    const targetHours = 0.04;
+    const title = `Settlement happy path ${crypto.randomUUID().slice(0, 8)}`;
+    const settlementNote = "Settlement approved after accepted evidence review.";
+
+    const signIn = await client.auth.signInWithPassword({
+      email: "operator@gofundmolt.local",
+      password: "password123",
+    });
+
+    expect(signIn.error).toBeNull();
+
+    const { error: pledgeError } = await client.rpc("create_pledge", {
+      target_proposal_id: targetProposalId,
+      target_agent_id: actorAgentId,
+      pledge_hours: targetHours,
+      pledge_note: "Reserve credits for settlement test.",
+    });
+
+    expect(pledgeError).toBeNull();
+
+    const walletBeforeSettlement = await getSeedWallet(client);
+    const milestoneId = await createAcceptedMilestone({ client, title, targetHours });
+
+    const directUpdate = await client
+      .from("milestones")
+      .update({
+        status: "settled",
+        settled_agent_id: actorAgentId,
+        settled_credits: targetHours,
+      })
+      .eq("id", milestoneId)
+      .select("status,settled_agent_id,settled_credits");
+
+    expect(directUpdate.error).toBeNull();
+    expect(directUpdate.data).toEqual([]);
+
+    const { data: settledMilestoneId, error: settleError } = await client.rpc("settle_accepted_milestone", {
+      target_milestone_id: milestoneId,
+      target_settling_agent_id: actorAgentId,
+      settlement_note: settlementNote,
+    });
+
+    expect(settleError).toBeNull();
+    expect(settledMilestoneId).toBe(milestoneId);
+
+    const [
+      { data: milestone, error: milestoneError },
+      { data: wallet, error: walletError },
+      { data: ledger, error: ledgerError },
+      { data: activity, error: activityError },
+    ] = await Promise.all([
+      client
+        .from("milestones")
+        .select("status,settled_agent_id,settled_at,settled_credits,settlement_note")
+        .eq("id", milestoneId)
+        .single(),
+      client
+        .from("wallets")
+        .select("balance_credits,reserved_credits")
+        .eq("id", walletBeforeSettlement.id)
+        .single(),
+      client
+        .from("wallet_ledger_entries")
+        .select("entry_type,amount_credits,balance_after,reserved_after,source_table,source_id,memo")
+        .eq("wallet_id", walletBeforeSettlement.id)
+        .eq("entry_type", expectedSettleLedgerEntryType)
+        .eq("source_table", "milestones")
+        .eq("source_id", milestoneId),
+      client
+        .from("activity_events")
+        .select("event_type")
+        .eq("proposal_id", targetProposalId)
+        .eq("actor_agent_id", actorAgentId)
+        .eq("event_type", expectedSettlementActivityEventType)
+        .contains("metadata", { milestone_id: milestoneId }),
+    ]);
+
+    expect(milestoneError).toBeNull();
+    expect(walletError).toBeNull();
+    expect(ledgerError).toBeNull();
+    expect(activityError).toBeNull();
+    expect(milestone).toMatchObject({
+      status: "settled",
+      settled_agent_id: actorAgentId,
+      settlement_note: settlementNote,
+    });
+    expect(milestone?.settled_at).toEqual(expect.any(String));
+    expect(Number(milestone?.settled_credits)).toBe(targetHours);
+    expect(Number(wallet?.balance_credits)).toBeCloseTo(walletBeforeSettlement.balanceCredits - targetHours);
+    expect(Number(wallet?.reserved_credits)).toBeCloseTo(walletBeforeSettlement.reservedCredits - targetHours);
+    expect(ledger).toHaveLength(1);
+    expect(ledger?.[0]).toMatchObject({
+      entry_type: expectedSettleLedgerEntryType,
+      source_table: "milestones",
+      source_id: milestoneId,
+    });
+    expect(Number(ledger?.[0]?.amount_credits)).toBe(-targetHours);
+    expect(Number(ledger?.[0]?.balance_after)).toBeCloseTo(walletBeforeSettlement.balanceCredits - targetHours);
+    expect(Number(ledger?.[0]?.reserved_after)).toBeCloseTo(walletBeforeSettlement.reservedCredits - targetHours);
+    expect(ledger?.[0]?.memo).toContain(title);
+    expect(activity).toHaveLength(1);
+  });
+
+  it("rejects settling the same accepted milestone twice", async () => {
+    const client = createClient(supabaseUrl, publishableKey!);
+    const targetHours = 0.03;
+    const title = `Double settlement guard ${crypto.randomUUID().slice(0, 8)}`;
+
+    const signIn = await client.auth.signInWithPassword({
+      email: "operator@gofundmolt.local",
+      password: "password123",
+    });
+
+    expect(signIn.error).toBeNull();
+
+    const { error: pledgeError } = await client.rpc("create_pledge", {
+      target_proposal_id: targetProposalId,
+      target_agent_id: actorAgentId,
+      pledge_hours: targetHours,
+      pledge_note: "Reserve credits for double-settlement test.",
+    });
+
+    expect(pledgeError).toBeNull();
+
+    const walletBeforeSettlement = await getSeedWallet(client);
+    const milestoneId = await createAcceptedMilestone({ client, title, targetHours });
+
+    const firstSettlement = await client.rpc("settle_accepted_milestone", {
+      target_milestone_id: milestoneId,
+      target_settling_agent_id: actorAgentId,
+      settlement_note: "First settlement should succeed.",
+    });
+
+    expect(firstSettlement.error).toBeNull();
+
+    const secondSettlement = await client.rpc("settle_accepted_milestone", {
+      target_milestone_id: milestoneId,
+      target_settling_agent_id: actorAgentId,
+      settlement_note: "Second settlement should be blocked.",
+    });
+
+    expect(secondSettlement.error).not.toBeNull();
+    expect(secondSettlement.error?.message).toBe("milestone_already_settled");
+
+    const [{ data: wallet, error: walletError }, { data: ledger, error: ledgerError }] = await Promise.all([
+      client.from("wallets").select("balance_credits,reserved_credits").eq("id", walletBeforeSettlement.id).single(),
+      client
+        .from("wallet_ledger_entries")
+        .select("id")
+        .eq("wallet_id", walletBeforeSettlement.id)
+        .eq("entry_type", expectedSettleLedgerEntryType)
+        .eq("source_table", "milestones")
+        .eq("source_id", milestoneId),
+    ]);
+
+    expect(walletError).toBeNull();
+    expect(ledgerError).toBeNull();
+    expect(Number(wallet?.balance_credits)).toBeCloseTo(walletBeforeSettlement.balanceCredits - targetHours);
+    expect(Number(wallet?.reserved_credits)).toBeCloseTo(walletBeforeSettlement.reservedCredits - targetHours);
+    expect(ledger).toHaveLength(1);
+  });
+
+  it("rejects settlement when escrow does not have enough reserved credits", async () => {
+    const client = createClient(supabaseUrl, publishableKey!);
+    const targetHours = 5.5;
+    const title = `Insufficient escrow guard ${crypto.randomUUID().slice(0, 8)}`;
+
+    const signIn = await client.auth.signInWithPassword({
+      email: "operator@gofundmolt.local",
+      password: "password123",
+    });
+
+    expect(signIn.error).toBeNull();
+
+    const walletBeforeSettlement = await getSeedWallet(client);
+    const milestoneId = await createAcceptedMilestone({
+      client,
+      title,
+      targetHours,
+      claimingAgentId: actorAgentId,
+      acceptingAgentId: successfulClaimingAgentId,
+    });
+
+    expect(walletBeforeSettlement.reservedCredits).toBeLessThan(targetHours);
+
+    const { error: settleError } = await client.rpc("settle_accepted_milestone", {
+      target_milestone_id: milestoneId,
+      target_settling_agent_id: actorAgentId,
+      settlement_note: "Settlement should fail without reserved credits.",
+    });
+
+    expect(settleError).not.toBeNull();
+    expect(settleError?.message).toBe("insufficient_reserved_credits");
+
+    const [{ data: milestone, error: milestoneError }, { data: wallet, error: walletError }] = await Promise.all([
+      client
+        .from("milestones")
+        .select("status,settled_agent_id,settled_at,settled_credits")
+        .eq("id", milestoneId)
+        .single(),
+      client.from("wallets").select("balance_credits,reserved_credits").eq("id", walletBeforeSettlement.id).single(),
+    ]);
+
+    expect(milestoneError).toBeNull();
+    expect(walletError).toBeNull();
+    expect(milestone).toMatchObject({
+      status: "accepted",
+      settled_agent_id: null,
+      settled_at: null,
+      settled_credits: null,
+    });
+    expect(Number(wallet?.balance_credits)).toBeCloseTo(walletBeforeSettlement.balanceCredits);
+    expect(Number(wallet?.reserved_credits)).toBeCloseTo(walletBeforeSettlement.reservedCredits);
   });
 });

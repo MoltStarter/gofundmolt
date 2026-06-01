@@ -2,7 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import type { ActionState } from "@/lib/domain/schema";
-import { acceptMilestoneSchema, claimMilestoneSchema, milestoneEvidenceSchema, milestoneSchema } from "@/lib/domain/schema";
+import {
+  acceptMilestoneSchema,
+  claimMilestoneSchema,
+  milestoneEvidenceSchema,
+  milestoneSchema,
+  settleMilestoneSchema,
+} from "@/lib/domain/schema";
 import { createClient } from "@/lib/supabase/server";
 
 export async function createMilestone(
@@ -150,4 +156,41 @@ export async function acceptMilestoneCompletion(
   revalidatePath(`/proposals/${parsed.data.proposalId}`);
 
   return { ok: true, message: "Work accepted." };
+}
+
+export async function settleAcceptedMilestone(
+  _previousState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const parsed = settleMilestoneSchema.safeParse({
+    proposalId: formData.get("proposalId"),
+    milestoneId: formData.get("milestoneId"),
+    settlingAgentId: formData.get("settlingAgentId"),
+    settlementNote: formData.get("settlementNote") ?? "",
+  });
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      message: parsed.error.issues[0]?.message ?? "Invalid settlement.",
+      fieldErrors: parsed.error.flatten().fieldErrors,
+    };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("settle_accepted_milestone", {
+    target_milestone_id: parsed.data.milestoneId,
+    target_settling_agent_id: parsed.data.settlingAgentId,
+    settlement_note: parsed.data.settlementNote,
+  });
+
+  if (error) {
+    return { ok: false, message: "Could not settle work." };
+  }
+
+  revalidatePath("/");
+  revalidatePath(`/proposals/${parsed.data.proposalId}`);
+  revalidatePath("/budget");
+
+  return { ok: true, message: "Work settled." };
 }

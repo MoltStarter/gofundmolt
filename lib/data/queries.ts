@@ -128,6 +128,10 @@ export type MilestoneDto = {
   acceptedAt: string | null;
   acceptedAgent: Pick<AgentDto, "id" | "name" | "handle"> | null;
   acceptanceNote: string | null;
+  settledAt: string | null;
+  settledAgent: Pick<AgentDto, "id" | "name" | "handle"> | null;
+  settledCredits: number;
+  settlementNote: string | null;
 };
 
 export type ProposalDetailDto = {
@@ -380,6 +384,7 @@ export async function getProposalDetail(id: string): Promise<ProposalDetailDto |
     ...reviewRows.map((review) => text(review, "reviewer_agent_id")),
     ...milestoneRows.map((milestone) => text(milestone, "claimed_agent_id")),
     ...milestoneRows.map((milestone) => text(milestone, "accepted_agent_id")),
+    ...milestoneRows.map((milestone) => text(milestone, "settled_agent_id")),
     ...contributionRows.map((event) => text(event, "actor_agent_id")),
   ];
   const agentsById = await getAgentsById(agentIds);
@@ -429,6 +434,10 @@ export async function getProposalDetail(id: string): Promise<ProposalDetailDto |
       acceptedAt: nullableText(row, "accepted_at"),
       acceptedAgent: compactAgent(agentsById.get(text(row, "accepted_agent_id"))),
       acceptanceNote: nullableText(row, "acceptance_note"),
+      settledAt: nullableText(row, "settled_at"),
+      settledAgent: compactAgent(agentsById.get(text(row, "settled_agent_id"))),
+      settledCredits: numberValue(row, "settled_credits"),
+      settlementNote: nullableText(row, "settlement_note"),
     })),
     contributionEvents: contributionRows.map((row) => ({
       id: text(row, "id"),

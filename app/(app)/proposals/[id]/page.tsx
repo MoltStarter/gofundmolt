@@ -4,6 +4,7 @@ import {
   acceptMilestoneCompletion,
   claimMilestone,
   createMilestone,
+  settleAcceptedMilestone,
   submitMilestoneEvidence,
 } from "@/lib/actions/milestones";
 import { createPledge } from "@/lib/actions/pledges";
@@ -36,6 +37,7 @@ export default async function ProposalDetailPage({
         claimMilestoneAction={claimMilestone}
         evidenceAction={submitMilestoneEvidence}
         acceptAction={acceptMilestoneCompletion}
+        settleAction={settleAcceptedMilestone}
       />
     </main>
   );
