@@ -17,6 +17,8 @@ const expectedAcceptanceActivityEventType = "milestone_accepted";
 const expectedSettlementActivityEventType = "milestone_settled";
 const expectedWorkAcceptedEventType = "work_accepted";
 const expectedSettleLedgerEntryType = "settle";
+const expectedPlatformFeeLedgerEntryType = "platform_fee";
+const platformFeeRate = 0.05;
 
 type TestDatabase = {
   public: {
@@ -728,6 +730,110 @@ describe("create_milestone rpc", () => {
     expect(Number(ledger?.[0]?.reserved_after)).toBeCloseTo(walletBeforeSettlement.reservedCredits - targetHours);
     expect(ledger?.[0]?.memo).toContain(title);
     expect(activity).toHaveLength(1);
+  });
+
+  it("splits settled credits into net agent settlement and deterministic platform fee entries", async () => {
+    const client = createClient(supabaseUrl, publishableKey!);
+    const targetHours = 2;
+    const expectedFee = targetHours * platformFeeRate;
+    const expectedNetSettlement = targetHours - expectedFee;
+    const title = `Settlement fee split ${crypto.randomUUID().slice(0, 8)}`;
+
+    const signIn = await client.auth.signInWithPassword({
+      email: "operator@gofundmolt.local",
+      password: "password123",
+    });
+
+    expect(signIn.error).toBeNull();
+
+    const { error: pledgeError } = await client.rpc("create_pledge", {
+      target_proposal_id: targetProposalId,
+      target_agent_id: actorAgentId,
+      pledge_hours: targetHours,
+      pledge_note: "Reserve credits for platform fee settlement test.",
+    });
+
+    expect(pledgeError).toBeNull();
+
+    const walletBeforeSettlement = await getSeedWallet(client);
+    const milestoneId = await createAcceptedMilestone({ client, title, targetHours });
+
+    const { error: settleError } = await client.rpc("settle_accepted_milestone", {
+      target_milestone_id: milestoneId,
+      target_settling_agent_id: actorAgentId,
+      settlement_note: "Fee split settlement should be deterministic.",
+    });
+
+    expect(settleError).toBeNull();
+
+    const [
+      { data: milestone, error: milestoneError },
+      { data: wallet, error: walletError },
+      { data: ledger, error: ledgerError },
+      { data: activity, error: activityError },
+    ] = await Promise.all([
+      client
+        .from("milestones")
+        .select("status,settled_credits,net_settlement_credits,platform_fee_credits")
+        .eq("id", milestoneId)
+        .single(),
+      client
+        .from("wallets")
+        .select("balance_credits,reserved_credits")
+        .eq("id", walletBeforeSettlement.id)
+        .single(),
+      client
+        .from("wallet_ledger_entries")
+        .select("entry_type,amount_credits,balance_after,reserved_after,source_table,source_id,memo")
+        .eq("wallet_id", walletBeforeSettlement.id)
+        .eq("source_table", "milestones")
+        .eq("source_id", milestoneId),
+      client
+        .from("activity_events")
+        .select("metadata")
+        .eq("proposal_id", targetProposalId)
+        .eq("actor_agent_id", actorAgentId)
+        .eq("event_type", expectedSettlementActivityEventType)
+        .contains("metadata", { milestone_id: milestoneId }),
+    ]);
+
+    expect(milestoneError).toBeNull();
+    expect(walletError).toBeNull();
+    expect(ledgerError).toBeNull();
+    expect(activityError).toBeNull();
+    expect(milestone).toMatchObject({ status: "settled" });
+    expect(Number(milestone?.settled_credits)).toBe(targetHours);
+    expect(Number(milestone?.net_settlement_credits)).toBe(expectedNetSettlement);
+    expect(Number(milestone?.platform_fee_credits)).toBe(expectedFee);
+    expect(Number(wallet?.balance_credits)).toBeCloseTo(walletBeforeSettlement.balanceCredits - targetHours);
+    expect(Number(wallet?.reserved_credits)).toBeCloseTo(walletBeforeSettlement.reservedCredits - targetHours);
+
+    const ledgerByType = new Map(ledger?.map((entry) => [entry.entry_type, entry]));
+    const netSettlementEntry = ledgerByType.get(expectedSettleLedgerEntryType);
+    const platformFeeEntry = ledgerByType.get(expectedPlatformFeeLedgerEntryType);
+
+    expect(ledger).toHaveLength(2);
+    expect(netSettlementEntry).toMatchObject({
+      entry_type: expectedSettleLedgerEntryType,
+      source_table: "milestones",
+      source_id: milestoneId,
+    });
+    expect(platformFeeEntry).toMatchObject({
+      entry_type: expectedPlatformFeeLedgerEntryType,
+      source_table: "milestones",
+      source_id: milestoneId,
+    });
+    expect(Number(netSettlementEntry?.amount_credits)).toBe(-expectedNetSettlement);
+    expect(Number(platformFeeEntry?.amount_credits)).toBe(-expectedFee);
+    expect(platformFeeEntry?.memo).toContain(title);
+    expect(activity).toHaveLength(1);
+    expect(activity?.[0]?.metadata).toMatchObject({
+      milestone_id: milestoneId,
+      settlement_credits: targetHours,
+      net_settlement_credits: expectedNetSettlement,
+      platform_fee_credits: expectedFee,
+      platform_fee_bps: 500,
+    });
   });
 
   it("rejects settling the same accepted milestone twice", async () => {

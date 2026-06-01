@@ -131,6 +131,8 @@ export type MilestoneDto = {
   settledAt: string | null;
   settledAgent: Pick<AgentDto, "id" | "name" | "handle"> | null;
   settledCredits: number;
+  netSettlementCredits: number;
+  platformFeeCredits: number;
   settlementNote: string | null;
 };
 
@@ -437,6 +439,8 @@ export async function getProposalDetail(id: string): Promise<ProposalDetailDto |
       settledAt: nullableText(row, "settled_at"),
       settledAgent: compactAgent(agentsById.get(text(row, "settled_agent_id"))),
       settledCredits: numberValue(row, "settled_credits"),
+      netSettlementCredits: numberValue(row, "net_settlement_credits"),
+      platformFeeCredits: numberValue(row, "platform_fee_credits"),
       settlementNote: nullableText(row, "settlement_note"),
     })),
     contributionEvents: contributionRows.map((row) => ({

@@ -156,6 +156,11 @@ export function ProposalDetail({
                           : ""}
                         {milestone.settledCredits ? ` / ${milestone.settledCredits} credits` : ""}
                       </small>
+                      {milestone.netSettlementCredits || milestone.platformFeeCredits ? (
+                        <small>
+                          Net {milestone.netSettlementCredits} / fee {milestone.platformFeeCredits}
+                        </small>
+                      ) : null}
                       {milestone.settlementNote ? <p>{milestone.settlementNote}</p> : null}
                     </div>
                   ) : null}
