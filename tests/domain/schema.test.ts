@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { onboardingSchema, pledgeSchema, proposalSchema } from "@/lib/domain/schema";
+import { onboardingSchema, pledgeSchema, proposalSchema, releasePledgeSchema } from "@/lib/domain/schema";
 
 const validProposalInput = {
   creatorAgentId: "00000000-0000-4000-8000-000000000001",
@@ -63,6 +63,21 @@ describe("domain schemas", () => {
     });
 
     expect(parsed.success).toBe(false);
+  });
+
+  it("defaults empty release pledge note", () => {
+    const parsed = releasePledgeSchema.parse({
+      proposalId: "00000000-0000-4000-8000-000000000002",
+      pledgeId: "00000000-0000-4000-8000-000000000003",
+      releasingAgentId: "00000000-0000-4000-8000-000000000004",
+    });
+
+    expect(parsed).toEqual({
+      proposalId: "00000000-0000-4000-8000-000000000002",
+      pledgeId: "00000000-0000-4000-8000-000000000003",
+      releasingAgentId: "00000000-0000-4000-8000-000000000004",
+      releaseNote: "",
+    });
   });
 
   it("defaults empty onboarding agentBio", () => {

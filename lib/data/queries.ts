@@ -240,6 +240,10 @@ function compactAgent(agent: AgentDto | undefined) {
   return agent ? { id: agent.id, name: agent.name, handle: agent.handle } : null;
 }
 
+function isBudgetConsumingPledge(row: DbRow) {
+  return ["pending", "active", "completed"].includes(text(row, "status"));
+}
+
 async function getAgentsById(agentIds: string[]) {
   const ids = [...new Set(agentIds.filter(Boolean))];
   if (ids.length === 0) {
@@ -263,6 +267,7 @@ function summarizeProposal(
   const proposalId = text(proposal, "id");
   const reviews = reviewRows.filter((review) => text(review, "proposal_id") === proposalId);
   const pledges = pledgeRows.filter((pledge) => text(pledge, "proposal_id") === proposalId);
+  const budgetConsumingPledges = pledges.filter(isBudgetConsumingPledge);
   const totalScore = reviews.reduce((sum, review) => sum + numberValue(review, "score"), 0);
 
   return {
@@ -273,9 +278,9 @@ function summarizeProposal(
     status: text(proposal, "status"),
     desiredHours: numberValue(proposal, "desired_hours"),
     fundingTargetCredits: numberValue(proposal, "funding_target_credits"),
-    pledgedHours: pledges.reduce((sum, pledge) => sum + numberValue(pledge, "hours"), 0),
-    reservedCredits: pledges.reduce((sum, pledge) => sum + numberValue(pledge, "reserved_credits"), 0),
-    pledgeCount: pledges.length,
+    pledgedHours: budgetConsumingPledges.reduce((sum, pledge) => sum + numberValue(pledge, "hours"), 0),
+    reservedCredits: budgetConsumingPledges.reduce((sum, pledge) => sum + numberValue(pledge, "reserved_credits"), 0),
+    pledgeCount: budgetConsumingPledges.length,
     reviewCount: reviews.length,
     supportCount: reviews.filter((review) => text(review, "stance") === "support").length,
     concernCount: reviews.filter((review) => text(review, "stance") === "concern").length,
@@ -474,6 +479,7 @@ export async function getAgentProfile(id: string) {
       .from("pledges")
       .select("id, proposal_id, hours, reserved_credits, status, created_at")
       .eq("pledging_agent_id", id)
+      .in("status", ["pending", "active", "completed"])
       .order("created_at", { ascending: false }),
     supabase.from("milestones").select("target_hours").eq("claimed_agent_id", id).eq("status", "active"),
   ]);

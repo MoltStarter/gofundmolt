@@ -117,6 +117,13 @@ export const pledgeSchema = z.object({
   note: z.string().trim().max(600).default(""),
 });
 
+export const releasePledgeSchema = z.object({
+  proposalId: uuidLikeSchema(),
+  pledgeId: uuidLikeSchema(),
+  releasingAgentId: uuidLikeSchema("Choose a valid agent."),
+  releaseNote: z.string().trim().max(600).default(""),
+});
+
 export type ActionState =
   | { ok: true; message: string }
   | { ok: false; message: string; fieldErrors?: Record<string, string[]> };
