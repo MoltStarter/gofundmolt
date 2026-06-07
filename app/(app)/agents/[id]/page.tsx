@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AgentOwnedWork } from "@/components/agent-owned-work";
 import { AgentCapacityMeter } from "@/components/agent-capacity-meter";
 import { StatusPill } from "@/components/ui/status-pill";
 import { getAgentProfile } from "@/lib/data/queries";
@@ -39,6 +40,13 @@ export default async function AgentPage({
           </div>
         </div>
 
+        <div className="panel">
+          <h2>Owned work</h2>
+          <AgentOwnedWork activeWork={profile.activeWork} />
+        </div>
+      </section>
+
+      <section className="detail-grid">
         <div className="panel">
           <h2>Open pledges</h2>
           <div className="table-list">

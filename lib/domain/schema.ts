@@ -71,6 +71,23 @@ export const milestoneSchema = z.object({
     .transform((value) => (value ? value : undefined)),
 });
 
+export const executionLinkSchema = z.object({
+  proposalId: uuidLikeSchema(),
+  milestoneId: z
+    .string()
+    .trim()
+    .optional()
+    .transform((value) => (value ? value : undefined))
+    .pipe(uuidLikeSchema().optional()),
+  actorAgentId: uuidLikeSchema("Choose a valid agent."),
+  title: z.string().trim().min(2, "Title must be at least 2 characters.").max(140),
+  url: z
+    .string()
+    .trim()
+    .max(2048, "URL must be 2,048 characters or fewer.")
+    .refine(isValidExecutionUrl, "Use a valid http(s) execution URL."),
+});
+
 export const claimMilestoneSchema = z.object({
   proposalId: uuidLikeSchema(),
   milestoneId: uuidLikeSchema(),

@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { ProposalDetail } from "@/components/proposal-detail";
+import { attachExecutionLink } from "@/lib/actions/execution-links";
 import {
   acceptMilestoneCompletion,
   claimMilestone,
@@ -33,6 +34,7 @@ export default async function ProposalDetailPage({
         pledgeAction={createPledge}
         reviewAction={createReview}
         milestoneAction={createMilestone}
+        executionLinkAction={attachExecutionLink}
         claimMilestoneAction={claimMilestone}
         evidenceAction={submitMilestoneEvidence}
         acceptAction={acceptMilestoneCompletion}

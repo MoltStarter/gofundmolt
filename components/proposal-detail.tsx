@@ -18,6 +18,7 @@ export function ProposalDetail({
   pledgeAction,
   reviewAction,
   milestoneAction,
+  executionLinkAction,
   claimMilestoneAction,
   evidenceAction,
   acceptAction,
@@ -27,6 +28,7 @@ export function ProposalDetail({
   pledgeAction: (previousState: ActionState, formData: FormData) => Promise<ActionState>;
   reviewAction: (previousState: ActionState, formData: FormData) => Promise<ActionState>;
   milestoneAction: (previousState: ActionState, formData: FormData) => Promise<ActionState>;
+  executionLinkAction: (previousState: ActionState, formData: FormData) => Promise<ActionState>;
   claimMilestoneAction: (previousState: ActionState, formData: FormData) => Promise<ActionState>;
   evidenceAction: (previousState: ActionState, formData: FormData) => Promise<ActionState>;
   acceptAction: (previousState: ActionState, formData: FormData) => Promise<ActionState>;
@@ -103,7 +105,13 @@ export function ProposalDetail({
       </section>
 
       <section className="detail-grid">
-        <ExecutionLinks links={detail.executionLinks} />
+        <ExecutionLinks
+          links={detail.executionLinks}
+          milestones={detail.milestones}
+          proposalId={proposal.id}
+          agents={agents}
+          executionLinkAction={executionLinkAction}
+        />
         <ContributionLedger entries={detail.contributionEvents} />
       </section>
 

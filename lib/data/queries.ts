@@ -46,6 +46,8 @@ export type ExecutionLinkDto = {
   url: string;
   provider: string;
   linkType: string;
+  milestoneId: string | null;
+  createdAt: string;
 };
 
 export type LedgerEntryDto = {
@@ -97,6 +99,16 @@ export type PledgeDto = {
   status: string;
   note: string;
   createdAt: string;
+};
+
+export type AgentWorkPackageDto = {
+  id: string;
+  proposalId: string;
+  proposalTitle: string;
+  title: string;
+  status: string;
+  targetHours: number;
+  executionLinks: ExecutionLinkDto[];
 };
 
 export type ContributionEventDto = {
@@ -396,6 +408,8 @@ export async function getProposalDetail(id: string): Promise<ProposalDetailDto |
       url: text(row, "url"),
       provider: text(row, "provider"),
       linkType: text(row, "link_type"),
+      milestoneId: nullableText(row, "milestone_id"),
+      createdAt: text(row, "created_at"),
     })),
     reviews: reviewRows.map((row) => ({
       id: text(row, "id"),
@@ -456,26 +470,65 @@ export async function getAgentProfile(id: string) {
   }
 
   const agent = mapAgent(agentData);
-  const [{ data: pledgesData }, { data: activeMilestonesData }] = await Promise.all([
+  const [{ data: pledgesData }, { data: ownedMilestonesData }] = await Promise.all([
     supabase
       .from("pledges")
       .select("id, proposal_id, hours, reserved_credits, status, created_at")
       .eq("pledging_agent_id", id)
       .order("created_at", { ascending: false }),
-    supabase.from("milestones").select("target_hours").eq("claimed_agent_id", id).eq("status", "active"),
+    supabase
+      .from("milestones")
+      .select("id, proposal_id, title, status, target_hours, created_at")
+      .eq("claimed_agent_id", id)
+      .in("status", ["active", "completed"])
+      .order("created_at", { ascending: false }),
   ]);
   const pledgeRows = rows(pledgesData);
+  const ownedMilestoneRows = rows(ownedMilestonesData);
   const activeMarketHours = roundTenth(
-    rows(activeMilestonesData).reduce((sum, milestone) => sum + numberValue(milestone, "target_hours"), 0),
+    ownedMilestoneRows
+      .filter((milestone) => text(milestone, "status") === "active")
+      .reduce((sum, milestone) => sum + numberValue(milestone, "target_hours"), 0),
   );
   const surplusMarketHours = roundTenth(
     Math.max(agent.weeklyHourCapacity - agent.reservedOwnerHours - activeMarketHours, 0),
   );
-  const proposalIds = pledgeRows.map((pledge) => text(pledge, "proposal_id"));
+  const proposalIds = [
+    ...pledgeRows.map((pledge) => text(pledge, "proposal_id")),
+    ...ownedMilestoneRows.map((milestone) => text(milestone, "proposal_id")),
+  ];
   const { data: proposalsData } = proposalIds.length
-    ? await supabase.from("proposals").select("id, title").in("id", proposalIds)
+    ? await supabase.from("proposals").select("id, title").in("id", [...new Set(proposalIds)])
     : { data: [] };
   const titles = new Map(rows(proposalsData).map((proposal) => [text(proposal, "id"), text(proposal, "title")]));
+  const milestoneIds = ownedMilestoneRows.map((milestone) => text(milestone, "id"));
+  const { data: executionLinksData } = milestoneIds.length
+    ? await supabase
+        .from("execution_links")
+        .select("*")
+        .in("milestone_id", milestoneIds)
+        .order("created_at", { ascending: false })
+    : { data: [] };
+  const executionLinksByMilestoneId = new Map<string, ExecutionLinkDto[]>();
+
+  for (const row of rows(executionLinksData)) {
+    const milestoneId = nullableText(row, "milestone_id");
+    if (!milestoneId) {
+      continue;
+    }
+
+    const links = executionLinksByMilestoneId.get(milestoneId) ?? [];
+    links.push({
+      id: text(row, "id"),
+      title: text(row, "title"),
+      url: text(row, "url"),
+      provider: text(row, "provider"),
+      linkType: text(row, "link_type"),
+      milestoneId,
+      createdAt: text(row, "created_at"),
+    });
+    executionLinksByMilestoneId.set(milestoneId, links);
+  }
 
   return {
     agent,
@@ -495,6 +548,15 @@ export async function getAgentProfile(id: string) {
       reservedCredits: numberValue(pledge, "reserved_credits"),
       status: text(pledge, "status"),
       createdAt: text(pledge, "created_at"),
+    })),
+    activeWork: ownedMilestoneRows.map((milestone) => ({
+      id: text(milestone, "id"),
+      proposalId: text(milestone, "proposal_id"),
+      proposalTitle: titles.get(text(milestone, "proposal_id")) ?? "Untitled proposal",
+      title: text(milestone, "title"),
+      status: text(milestone, "status"),
+      targetHours: numberValue(milestone, "target_hours"),
+      executionLinks: executionLinksByMilestoneId.get(text(milestone, "id")) ?? [],
     })),
   };
 }
