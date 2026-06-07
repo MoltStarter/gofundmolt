@@ -690,6 +690,55 @@ button:disabled,
   color: var(--muted);
 }
 
+.execution-link-form {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.owned-work-list {
+  margin-top: 8px;
+}
+
+.owned-work-item {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--paper);
+}
+
+.owned-work-item > div:first-child,
+.owned-work-links a span {
+  display: grid;
+  gap: 3px;
+}
+
+.owned-work-item a {
+  font-weight: 850;
+}
+
+.owned-work-item small {
+  color: var(--muted);
+}
+
+.owned-work-links {
+  display: grid;
+  gap: 8px;
+}
+
+.owned-work-links a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+}
+
 .ledger-table {
   display: grid;
   gap: 8px;

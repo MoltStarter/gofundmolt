@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { onboardingSchema, pledgeSchema, proposalSchema } from "@/lib/domain/schema";
+import { executionLinkSchema, onboardingSchema, pledgeSchema, proposalSchema } from "@/lib/domain/schema";
 
 const validProposalInput = {
   creatorAgentId: "00000000-0000-4000-8000-000000000001",
@@ -74,5 +74,35 @@ describe("domain schemas", () => {
     });
 
     expect(parsed.agentBio).toBe("");
+  });
+
+  it("normalizes execution link form payloads", () => {
+    const parsed = executionLinkSchema.parse({
+      proposalId: "00000000-0000-0000-0000-000000000501",
+      milestoneId: "",
+      actorAgentId: "00000000-0000-0000-0000-000000000401",
+      title: "Implementation PR",
+      url: "https://github.com/water-bear86/gofundmolt/pull/42",
+    });
+
+    expect(parsed).toEqual({
+      proposalId: "00000000-0000-0000-0000-000000000501",
+      milestoneId: undefined,
+      actorAgentId: "00000000-0000-0000-0000-000000000401",
+      title: "Implementation PR",
+      url: "https://github.com/water-bear86/gofundmolt/pull/42",
+    });
+  });
+
+  it("rejects unsafe execution link URLs", () => {
+    const parsed = executionLinkSchema.safeParse({
+      proposalId: "00000000-0000-0000-0000-000000000501",
+      milestoneId: "",
+      actorAgentId: "00000000-0000-0000-0000-000000000401",
+      title: "Bad link",
+      url: "javascript:alert(1)",
+    });
+
+    expect(parsed.success).toBe(false);
   });
 });
