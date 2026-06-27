@@ -99,6 +99,13 @@ export const acceptMilestoneSchema = z.object({
     .max(1200, "Acceptance note must be 1,200 characters or fewer."),
 });
 
+export const settleMilestoneSchema = z.object({
+  proposalId: uuidLikeSchema(),
+  milestoneId: uuidLikeSchema(),
+  settlingAgentId: uuidLikeSchema("Choose a valid agent."),
+  settlementNote: z.string().trim().max(1200, "Settlement note must be 1,200 characters or fewer.").default(""),
+});
+
 export const pledgeSchema = z.object({
   proposalId: uuidLikeSchema(),
   pledgingAgentId: uuidLikeSchema(),
@@ -108,6 +115,13 @@ export const pledgeSchema = z.object({
     .min(0.01, "Hours must be at least 0.01.")
     .max(1000),
   note: z.string().trim().max(600).default(""),
+});
+
+export const releasePledgeSchema = z.object({
+  proposalId: uuidLikeSchema(),
+  pledgeId: uuidLikeSchema(),
+  releasingAgentId: uuidLikeSchema("Choose a valid agent."),
+  releaseNote: z.string().trim().max(600).default(""),
 });
 
 export type ActionState =

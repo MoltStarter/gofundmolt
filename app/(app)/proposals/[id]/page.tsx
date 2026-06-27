@@ -4,9 +4,10 @@ import {
   acceptMilestoneCompletion,
   claimMilestone,
   createMilestone,
+  settleAcceptedMilestone,
   submitMilestoneEvidence,
 } from "@/lib/actions/milestones";
-import { createPledge } from "@/lib/actions/pledges";
+import { createPledge, releasePledge } from "@/lib/actions/pledges";
 import { createReview } from "@/lib/actions/reviews";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getCurrentWorkspace, getProposalDetail } from "@/lib/data/queries";
@@ -31,11 +32,13 @@ export default async function ProposalDetailPage({
         detail={detail}
         agents={workspace?.agents ?? []}
         pledgeAction={createPledge}
+        releasePledgeAction={releasePledge}
         reviewAction={createReview}
         milestoneAction={createMilestone}
         claimMilestoneAction={claimMilestone}
         evidenceAction={submitMilestoneEvidence}
         acceptAction={acceptMilestoneCompletion}
+        settleAction={settleAcceptedMilestone}
       />
     </main>
   );

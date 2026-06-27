@@ -9,30 +9,39 @@ import { ExecutionLinks } from "@/components/execution-links";
 import { MilestoneEvidenceForm } from "@/components/milestone-evidence-form";
 import { MilestoneForm } from "@/components/milestone-form";
 import { PledgeForm } from "@/components/pledge-form";
+import { ReleasePledgeButton } from "@/components/release-pledge-button";
 import { ReviewForm } from "@/components/review-form";
+import { SettleMilestoneButton } from "@/components/settle-milestone-button";
 import { StatusPill } from "@/components/ui/status-pill";
 
 export function ProposalDetail({
   detail,
   agents,
   pledgeAction,
+  releasePledgeAction,
   reviewAction,
   milestoneAction,
   claimMilestoneAction,
   evidenceAction,
   acceptAction,
+  settleAction,
 }: {
   detail: ProposalDetailDto;
   agents: AgentDto[];
   pledgeAction: (previousState: ActionState, formData: FormData) => Promise<ActionState>;
+  releasePledgeAction: (previousState: ActionState, formData: FormData) => Promise<ActionState>;
   reviewAction: (previousState: ActionState, formData: FormData) => Promise<ActionState>;
   milestoneAction: (previousState: ActionState, formData: FormData) => Promise<ActionState>;
   claimMilestoneAction: (previousState: ActionState, formData: FormData) => Promise<ActionState>;
   evidenceAction: (previousState: ActionState, formData: FormData) => Promise<ActionState>;
   acceptAction: (previousState: ActionState, formData: FormData) => Promise<ActionState>;
+  settleAction: (previousState: ActionState, formData: FormData) => Promise<ActionState>;
 }) {
   const { proposal } = detail;
   const operableAgentIds = new Set(agents.map((agent) => agent.id));
+  const hasWorkExposure = detail.milestones.some((milestone) =>
+    ["active", "completed", "accepted", "settled"].includes(milestone.status),
+  );
   const creditProgress = proposal.fundingTargetCredits
     ? Math.min(100, Math.round((proposal.reservedCredits / proposal.fundingTargetCredits) * 100))
     : 0;
@@ -99,6 +108,35 @@ export function ProposalDetail({
             <span>{agents.length} agents</span>
           </div>
           <PledgeForm proposalId={proposal.id} agents={agents} pledgeAction={pledgeAction} />
+          <div className="stack-list pledge-list">
+            {detail.pledges.map((pledge) => {
+              const releaseAgentId = pledge.agent?.id ?? "";
+              const canRelease =
+                !hasWorkExposure &&
+                pledge.status === "active" &&
+                releaseAgentId !== "" &&
+                operableAgentIds.has(releaseAgentId);
+
+              return (
+                <article key={pledge.id}>
+                  <strong>{pledge.agent ? `${pledge.agent.name} @${pledge.agent.handle}` : "Unknown agent"}</strong>
+                  <span>
+                    {pledge.hours}h / {pledge.status}
+                  </span>
+                  {pledge.note ? <p>{pledge.note}</p> : null}
+                  {canRelease ? (
+                    <ReleasePledgeButton
+                      proposalId={proposal.id}
+                      pledgeId={pledge.id}
+                      releasingAgentId={releaseAgentId}
+                      releaseAction={releasePledgeAction}
+                    />
+                  ) : null}
+                </article>
+              );
+            })}
+            {detail.pledges.length === 0 ? <p className="muted">No pledges yet.</p> : null}
+          </div>
         </div>
       </section>
 
@@ -144,6 +182,23 @@ export function ProposalDetail({
                       <p>{milestone.acceptanceNote}</p>
                     </div>
                   ) : null}
+                  {milestone.settledAt ? (
+                    <div className="evidence-preview">
+                      <small>
+                        Settled
+                        {milestone.settledAgent
+                          ? ` by ${milestone.settledAgent.name} @${milestone.settledAgent.handle}`
+                          : ""}
+                        {milestone.settledCredits ? ` / ${milestone.settledCredits} credits` : ""}
+                      </small>
+                      {milestone.netSettlementCredits || milestone.platformFeeCredits ? (
+                        <small>
+                          Net {milestone.netSettlementCredits} / fee {milestone.platformFeeCredits}
+                        </small>
+                      ) : null}
+                      {milestone.settlementNote ? <p>{milestone.settlementNote}</p> : null}
+                    </div>
+                  ) : null}
                 </div>
                 {milestone.status === "planned" ? (
                   <ClaimMilestoneButton
@@ -169,6 +224,14 @@ export function ProposalDetail({
                     milestoneId={milestone.id}
                     agents={agents.filter((agent) => agent.id !== milestone.claimedAgent?.id)}
                     acceptAction={acceptAction}
+                  />
+                ) : null}
+                {milestone.status === "accepted" ? (
+                  <SettleMilestoneButton
+                    proposalId={proposal.id}
+                    milestoneId={milestone.id}
+                    agents={agents}
+                    settleAction={settleAction}
                   />
                 ) : null}
               </article>
